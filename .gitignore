@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+
+# Production build
+dist/
+
+# IntelliJ IDEA — préférences locales
+.idea/
+*.iml
+
+# JetBrains AI / Junie — données locales
+.junie/
+
+# Environment variables and secrets
+.env
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# Test coverage
+coverage/
+
+# Operating systems
+.DS_Store
+Thumbs.db
+
+# Local SQLite databases
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.sqlite-journal
+
+# Temporary files
+*.tmp
+*.swp

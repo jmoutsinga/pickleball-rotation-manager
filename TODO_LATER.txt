@@ -1,0 +1,74 @@
+
+========================
+1. Convertir dans ManageSession.vue les <div class="setup-form"> et <div class="add-player-form"> en formulaires natif html.
+Un véritable élément <form> exprime que plusieurs champs et un bouton constituent une action de saisie cohérente.
+Il apporte surtout une meilleure sémantique HTML, une meilleure accessibilité et la soumission native avec la touche Entrée.
+
+Dans ton code actuel :
+<div class="add-player-form">
+  <label for="player-name">Player name:</label>
+  <input
+    id="player-name"
+    v-model="newPlayerName"
+    @keyup.enter="addNewPlayer"
+  >
+  <button @click="addNewPlayer">Add Player</button>
+</div>
+Deux événements déclenchent manuellement la même méthode :
+•
+@keyup.enter sur l’input ;
+•
+@click sur le bouton.
+Avec un formulaire :
+<form class="add-player-form" @submit.prevent="addNewPlayer">
+  <label for="player-name">Player name:</label>
+  <input
+    id="player-name"
+    v-model="newPlayerName"
+  >
+  <button type="submit" :disabled="!newPlayerName.trim()">
+    Add Player
+  </button>
+</form>
+@submit.prevent combine deux mécanismes Vue :
+•
+@submit écoute l’événement natif de soumission ;
+•
+.prevent appelle event.preventDefault() et empêche le navigateur de recharger la page.
+Les avantages sont :
+•
+Entrée soumet naturellement le formulaire sans @keyup.enter.
+•
+Le clic sur le bouton déclenche le même événement.
+•
+Les lecteurs d’écran reconnaissent mieux la zone comme formulaire.
+•
+La logique de soumission est centralisée à un seul endroit.
+•
+Les validations HTML natives, comme required, peuvent fonctionner normalement.
+•
+Un futur second bouton peut être déclaré type="button" sans déclencher accidentellement la soumission.
+On pourrait ainsi ajouter :
+<input
+  id="player-name"
+  v-model.trim="newPlayerName"
+  required
+>
+.trim demande à Vue de retirer automatiquement les espaces en début et fin de saisie lors de la mise à jour du modèle.
+Le formulaire de création des terrains bénéficierait du même traitement :
+<form class="setup-form" @submit.prevent="initializeCourts">
+  <label for="num-courts">Number of courts:</label>
+  <input
+    id="num-courts"
+    v-model.number="numCourts"
+    type="number"
+    min="1"
+    max="10"
+    required
+  >
+  <button type="submit">Set Courts</button>
+</form>
+Cela ne change pas l’architecture Vue : c’est principalement une amélioration sémantique et une simplification de la gestion des événements.
+
+========================
+
