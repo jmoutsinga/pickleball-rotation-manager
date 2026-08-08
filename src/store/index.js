@@ -1,5 +1,6 @@
 import { createStore } from 'vuex'
 import storageService from '../services/storage'
+import { PlayerStatus } from '../models'
 
 export default createStore({
   state: {
@@ -13,10 +14,9 @@ export default createStore({
     },
     SET_PLAYERS(state, players) {
       state.players = players
-      state.waitingPlayers = players.filter(p => p.status === 'waiting')
+      state.waitingPlayers = players.filter(p => p.status !== PlayerStatus.ACTIVE)
     },
     ADD_PLAYER(state, player) {
-      if (!player.teamMates) player.teamMates = {}
       state.players.push(player)
       state.waitingPlayers.push(player)
     },
@@ -43,7 +43,7 @@ export default createStore({
       })
 
       // Move to waiting list
-      player.status = 'waiting'
+      player.changeStatus(PlayerStatus.WAITING)
       if (!state.waitingPlayers.some(p => p.id === playerId)) {
         state.waitingPlayers.push(player)
       }
@@ -71,10 +71,8 @@ export default createStore({
         for (const court of state.courts) {
           const team = Object.values(court.teams).find(t => t.id === targetTeamId)
           if (team && team.players.length < 2) {
-            team.players.push({
-              ...player,
-              status: 'active'
-            })
+            player.changeStatus(PlayerStatus.ACTIVE)
+            team.players.push(player)
             // Update storage
             storageService.updatePlayerTeam(playerId, targetTeamId)
             return
@@ -87,10 +85,8 @@ export default createStore({
         Object.values(court.teams).some(team => 
           team.id === targetTeamId && team.players.includes(player)
         ))) {
-        state.waitingPlayers.push({
-          ...player,
-          status: 'waiting'
-        })
+        player.changeStatus(PlayerStatus.WAITING)
+        state.waitingPlayers.push(player)
         // Update storage
         storageService.updatePlayerTeam(playerId, null)
       }
@@ -116,7 +112,6 @@ export default createStore({
       commit('SET_COURTS', courts)
     },
     addPlayer({ commit }, player) {
-      if (!player.teamMates) player.teamMates = {}
       storageService.savePlayer(player)
       commit('ADD_PLAYER', player)
     },

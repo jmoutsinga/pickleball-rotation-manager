@@ -14,25 +14,6 @@
         >
       </div>
       
-      <div v-if="editingPlayer" class="team-mates-management">
-        <h3>Team Mates (Games Played Together)</h3>
-        <div v-for="otherPlayer in otherPlayers" :key="otherPlayer.id" class="team-mate-row">
-          <label :for="`team-mate-count-${otherPlayer.id}`">
-            {{ otherPlayer.name }}
-          </label>
-          <div class="counter">
-            <button @click="updateTeamMateCount(otherPlayer.id, -1)">-</button>
-            <input
-                :id="`team-mate-count-${otherPlayer.id}`"
-                v-model.number="editingPlayer.teamMates[otherPlayer.id]"
-                type="number"
-                readonly
-            >
-            <button @click="updateTeamMateCount(otherPlayer.id, 1)">+</button>
-          </div>
-        </div>
-      </div>
-
       <div class="form-actions">
         <button class="save-button" @click="savePlayer">{{ editingPlayer ? 'Update' : 'Create' }}</button>
         <button v-if="editingPlayer" class="cancel-button" @click="cancelEdit">Cancel</button>
@@ -64,6 +45,7 @@
 
 <script>
 import { mapState, mapActions } from 'vuex';
+import { PlayerBuilder } from '../models';
 
 export default {
   name: 'ManagePlayers',
@@ -76,11 +58,7 @@ export default {
   computed: {
     ...mapState({
       allPlayers: state => state.players
-    }),
-    otherPlayers() {
-      if (!this.editingPlayer) return [];
-      return this.allPlayers.filter(p => p.id !== this.editingPlayer.id);
-    }
+    })
   },
   methods: {
     ...mapActions(['addPlayer', 'updatePlayer', 'removePlayer']),
@@ -88,45 +66,28 @@ export default {
       if (!this.newPlayerName.trim()) return;
 
       if (this.editingPlayer) {
-        const updated = {
-          ...this.editingPlayer,
-          name: this.newPlayerName.trim()
-        };
+        const updated = new PlayerBuilder()
+          .withId(this.editingPlayer.id)
+          .withName(this.newPlayerName)
+          .withStatus(this.editingPlayer.status)
+          .build();
         this.updatePlayer(updated);
         this.editingPlayer = null;
       } else {
-        const newPlayer = {
-          id: Date.now().toString(),
-          name: this.newPlayerName.trim(),
-          status: 'waiting',
-          teamMates: {}
-        };
+        const newPlayer = new PlayerBuilder()
+          .withName(this.newPlayerName)
+          .build();
         this.addPlayer(newPlayer);
       }
       this.newPlayerName = '';
     },
     startEdit(player) {
-      this.editingPlayer = JSON.parse(JSON.stringify(player)); // Deep copy
-      if (!this.editingPlayer.teamMates) {
-        this.editingPlayer.teamMates = {};
-      }
-      // Initialize zero for all other players if not present
-      this.allPlayers.forEach(p => {
-        if (p.id !== this.editingPlayer.id && !this.editingPlayer.teamMates[p.id]) {
-          this.editingPlayer.teamMates[p.id] = 0;
-        }
-      });
+      this.editingPlayer = player;
       this.newPlayerName = player.name;
     },
     cancelEdit() {
       this.editingPlayer = null;
       this.newPlayerName = '';
-    },
-    updateTeamMateCount(otherPlayerId, delta) {
-      if (!this.editingPlayer.teamMates[otherPlayerId]) {
-        this.editingPlayer.teamMates[otherPlayerId] = 0;
-      }
-      this.editingPlayer.teamMates[otherPlayerId] = Math.max(0, this.editingPlayer.teamMates[otherPlayerId] + delta);
     },
     deletePlayer(playerId) {
       if (confirm('Are you sure you want to delete this player?')) {
@@ -171,42 +132,6 @@ export default {
   padding: 8px;
   border: 1px solid #ddd;
   border-radius: 4px;
-}
-
-.team-mates-management {
-  margin: 20px 0;
-  border-top: 1px solid #eee;
-  padding-top: 20px;
-}
-
-.team-mate-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 0;
-  border-bottom: 1px solid #f9f9f9;
-}
-
-.counter {
-  display: flex;
-  align-items: center;
-}
-
-.counter button {
-  width: 30px;
-  height: 30px;
-  border: 1px solid #ddd;
-  background: #f0f0f0;
-  cursor: pointer;
-}
-
-.counter input {
-  width: 50px;
-  text-align: center;
-  border: none;
-  border-top: 1px solid #ddd;
-  border-bottom: 1px solid #ddd;
-  height: 28px;
 }
 
 .form-actions {

@@ -117,6 +117,7 @@
 
 <script>
 import { mapGetters, mapActions } from 'vuex'
+import { PlayerBuilder } from '../models'
 
 export default {
   name: 'ManageSession',
@@ -148,10 +149,9 @@ export default {
     },
     addNewPlayer() {
       if (this.newPlayerName.trim()) {
-        this.addPlayer({
-          id: Date.now(),
-          name: this.newPlayerName.trim()
-        })
+        this.addPlayer(new PlayerBuilder()
+          .withName(this.newPlayerName)
+          .build())
         this.newPlayerName = ''
       }
     },
