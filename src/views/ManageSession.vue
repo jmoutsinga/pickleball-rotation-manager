@@ -140,7 +140,7 @@ export default {
     }
   },
   methods: {
-    ...mapActions(['setCourts', 'addPlayer', 'removePlayer', 'movePlayer', 'initializeFromStorage']),
+    ...mapActions(['setCourts', 'addPlayer', 'removePlayer', 'movePlayer']),
     async initializeCourts() {
       if (this.numCourts > 0) {
         await this.setCourts(this.numCourts)
@@ -173,8 +173,7 @@ export default {
       this.dragSource = null
     }
   },
-  async created() {
-    await this.initializeFromStorage()
+  created() {
     // If there are courts in the database, set courtsInitialized to true
     if (this.courts.length > 0) {
       this.courtsInitialized = true

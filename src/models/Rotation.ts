@@ -14,7 +14,7 @@ export class Rotation {
   readonly sessionId: string
   readonly order: number
   readonly games: Game[]
-  readonly waitingPlayers: Player[]
+  waitingPlayers: Player[]
 
   constructor(sessionId: string, order: number, games: Game[], waitingPlayers: Player[], id: string = crypto.randomUUID()) {
     if (!sessionId) throw new Error('Rotation sessionId is required')
