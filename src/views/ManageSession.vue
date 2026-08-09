@@ -117,7 +117,7 @@
 
 <script>
 import { mapGetters, mapActions } from 'vuex'
-import { PlayerBuilder } from '../models'
+import { PlayerBuilder } from '@/models'
 
 export default {
   name: 'ManageSession',

@@ -45,7 +45,7 @@
 
 <script>
 import { mapState, mapActions } from 'vuex';
-import { PlayerBuilder } from '../models';
+import { PlayerBuilder } from '@/models';
 
 export default {
   name: 'ManagePlayers',

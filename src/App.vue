@@ -39,6 +39,7 @@ export default {
   margin: 0 10px;
 }
 
+/* noinspection CssUnusedSymbol */
 .navbar a.router-link-exact-active {
   color: #42b983;
 }

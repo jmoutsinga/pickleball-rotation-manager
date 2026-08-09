@@ -1,6 +1,6 @@
 import { createStore } from 'vuex'
 import storageService from '../services/storage'
-import { PlayerStatus } from '../models'
+import { PlayerStatus } from '@/models'
 
 export default createStore({
   state: {

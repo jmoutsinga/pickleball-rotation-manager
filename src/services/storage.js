@@ -8,7 +8,7 @@ import {
   Session,
   SessionStatus,
   Team
-} from '../models'
+} from '@/models'
 
 const STORAGE_KEYS = {
   COURTS: 'pickleball_courts',
