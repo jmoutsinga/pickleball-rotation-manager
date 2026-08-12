@@ -2,7 +2,13 @@ import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import ManageSession from '../views/ManageSession.vue'
 import ManagePlayers from '../views/ManagePlayers.vue'
-import store from '../store'
+import { useSessionStore } from '@/stores/session'
+
+async function ensureSessionGuard() {
+  const sessionStore = useSessionStore()
+  await sessionStore.ensureSession()
+}
+
 
 const routes = [
   {
@@ -14,14 +20,13 @@ const routes = [
     path: '/manage',
     name: 'manage',
     component: ManageSession,
-    beforeEnter: async () => {
-      await store.dispatch('ensureSession')
-    }
+    beforeEnter: ensureSessionGuard
   },
   {
     path: '/manage-players',
     name: 'managePlayers',
-    component: ManagePlayers
+    component: ManagePlayers,
+    beforeEnter: ensureSessionGuard
   }
 ]
 

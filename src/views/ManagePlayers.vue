@@ -44,8 +44,9 @@
 </template>
 
 <script>
-import { mapState, mapActions } from 'vuex';
-import { PlayerBuilder } from '@/models';
+import { mapActions, mapState } from 'pinia'
+import { PlayerBuilder } from '@/models'
+import { useSessionStore } from '@/stores/session'
 
 export default {
   name: 'ManagePlayers',
@@ -56,12 +57,16 @@ export default {
     };
   },
   computed: {
-    ...mapState({
-      allPlayers: state => state.players
+    ...mapState(useSessionStore, {
+      allPlayers: 'players'
     })
   },
   methods: {
-    ...mapActions(['addPlayer', 'updatePlayer', 'removePlayer']),
+    ...mapActions(useSessionStore, [
+      'addPlayer',
+      'updatePlayer',
+      'removePlayer'
+    ]),
     savePlayer() {
       if (!this.newPlayerName.trim()) return;
 

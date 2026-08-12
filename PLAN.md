@@ -2,12 +2,35 @@
 
 ## Suivi
 
-- Étape en cours : **0.4 — Introduire Pinia et un service de persistance clairement séparé**.
-- État : **en attente de présentation de la migration Vuex → Pinia et d'accord explicite avant modification architecturale**.
-- Dernières étapes terminées : **0.1**, **0.2** et **0.3**.
+- Étape en cours : **0.5 — Ajouter les tests unitaires minimaux des stores et modèles**.
+- État : **migration Vuex → Pinia terminée ; automatisation E2E Cypress opérationnelle ; runner de tests unitaires purs à choisir**.
+- Dernières étapes terminées : **0.1**, **0.2**, **0.3**, **0.4**, ainsi que les sous-étapes **1 à 11** de la migration Vuex → Pinia.
 - Éléments anticipés : la persistance et la restauration du graphe de l'étape **3.11**, ainsi que les affectations manuelles de l'étape **4.4**, sont partiellement implémentées. Les étapes 3 et 4 restent à réaliser dans leur ensemble.
-- Prochaine action : présenter le fonctionnement de Pinia, les différences avec Vuex, le périmètre de migration et le découpage proposé du service de persistance, puis demander l'accord avant implémentation.
+- Prochaine action : choisir le runner dédié aux tests unitaires purs, puis tester en priorité le store Pinia et les modèles métier sans navigateur.
 - Marqueurs d'avancement : `[x]` terminée ; `[==>]` en cours ; `[ ]` pas encore commencée.
+
+### Migration Vuex → Pinia
+
+1. [x] Installer Pinia tout en conservant Vuex.
+2. [x] Enregistrer temporairement les deux plugins.
+3. [x] Créer `useSessionStore`.
+4. [x] Déplacer la persistance du graphe dans le service de stockage.
+5. [x] Migrer le garde de route vers Pinia, avec initialisation Vuex temporaire pendant la transition.
+6. [x] Migrer `ManageSession`, puis supprimer l'initialisation Vuex du garde.
+7. [x] Garantir l'accès direct à `/manage-players` et migrer `ManagePlayers`.
+8. [x] Retirer Vuex de l'application — ancien store supprimé et absence de référence Vuex vérifiée sous `src`.
+9. [x] Désinstaller les dépendances directes `vuex` et `@vue/cli-plugin-vuex`.
+10. [x] Vérifier le lint, le build et la navigation automatisée des trois routes.
+11. [x] Finaliser le suivi et le journal de décisions dans `PLAN.md`.
+
+### Automatisation des tests
+
+1. [x] Installer et configurer Cypress pour les tests E2E.
+2. [x] Tester l'accès direct et le rechargement complet de `/`, `/manage` et `/manage-players`.
+3. [x] Faire échouer les tests en cas d'erreur JavaScript ou de réponse HTTP en erreur.
+4. [x] Exécuter le lint et les tests de routes automatiquement avant chaque build.
+5. [ ] Introduire Cypress Component Testing lors de l'extraction des composants Vue.
+6. [ ] Choisir à l'étape 0.5 un runner dédié aux tests unitaires purs des modèles, stores et algorithmes.
 
 ### État d'avancement
 
@@ -16,8 +39,8 @@
 | 0.1 — Initialisation globale des données | Terminée |
 | 0.2 — Problème des joueurs invisibles | Terminée |
 | 0.3 — Modèles minimaux et règles d'identifiants | Terminée |
-| 0.4 — Pinia et séparation de la persistance | En cours — présentation et accord requis |
-| 0.5 — Tests unitaires minimaux | À faire |
+| 0.4 — Pinia et séparation de la persistance | Terminée |
+| 0.5 — Tests unitaires minimaux | En cours — automatisation E2E Cypress anticipée, runner unitaire à choisir |
 | 1 — Home et Locations | À faire |
 | 2 — Manage Players | À faire |
 | 3 — Modèle et structure de Manage Session | À faire — 3.11 partiellement anticipée |
@@ -45,6 +68,14 @@ Les décisions antérieures sont horodatées à la date de leur consignation dan
 - **2026-08-10 01:41:38** — Employer systématiquement le terme `loserTeam`. Justification : utiliser une terminologie anglaise correcte et cohérente dans le modèle et l'interface.
 - **2026-08-10 01:41:38** — Employer le mot « base » pour désigner `localStorage` jusqu'à l'étape SQLite. Justification : lever l'ambiguïté sur le mécanisme de persistance réellement actif.
 - **2026-08-10 01:41:38** — Faire de `PLAN.md` la source de vérité du travail et le mettre à jour après chaque étape significative avant de poursuivre. Justification : conserver un état d'avancement et un journal de décisions persistants entre les conversations.
+- **2026-08-10 14:50:43** — Approuver la migration de Vuex vers Pinia et confier les modifications applicatives au développeur avec un accompagnement étape par étape. Justification : apprendre Pinia en réalisant directement chaque changement tout en conservant des incréments petits et vérifiables.
+- **2026-08-12 00:37:27** — Initialiser temporairement Pinia et Vuex dans le garde de la route `/manage` jusqu'à la migration de `ManageSession`. Justification : le composant consomme encore Vuex ; supprimer immédiatement son initialisation rendrait son état vide, tandis que cette transition permet de vérifier chaque modification séparément.
+- **2026-08-12 01:19:11** — Garantir explicitement l'initialisation du store pour chaque route qui le consomme, au moyen d'un garde partagé entre `/manage` et `/manage-players`. Justification : `ManagePlayers` dépendait implicitement d'un passage préalable par `/manage`; chaque route doit fonctionner lors d'un accès direct et ne pas dépendre de l'ordre de navigation.
+- **2026-08-12 01:45:07** — Servir le favicon depuis `public/favicon.ico` et le référencer dans `public/index.html` avec `BASE_URL`. Justification : supprimer la réponse 404 au rechargement complet et conserver un chemin valide lorsque l'application est déployée sous un chemin de base non racine.
+- **2026-08-12 02:22:35** — Choisir Cypress pour les tests E2E et les futurs tests de composants Vue, et réserver un runner dédié aux tests unitaires purs. Justification : apprendre les deux niveaux de tests, bénéficier de l'interface interactive de Cypress pour Vue, automatiser les accès directs et rechargements de routes, tout en conservant des tests unitaires rapides et indépendants du navigateur pour le domaine.
+- **2026-08-12 02:27:17** — Exécuter automatiquement le lint et les smoke tests Cypress des routes via le hook npm `prebuild`. Justification : empêcher la production d'un build lorsque l'accès direct, le rechargement d'une route ou une ressource HTTP de l'application est en erreur.
+- **2026-08-12 02:51:58** — Supprimer `src/store/index.js` après avoir migré tous ses consommateurs vers `useSessionStore`. Justification : l'ancien store Vuex ne faisait plus partie du graphe de modules actif ; le lint, les trois tests Cypress de routes et le build de production confirment que Pinia est désormais l'unique store utilisé par l'application.
+- **2026-08-12 02:55:26** — Retirer les dépendances directes `vuex` et `@vue/cli-plugin-vuex`, tout en conservant l'occurrence transitive du plugin imposée par `@vue/cli-service@5.0.9`. Justification : le runtime Vuex et sa déclaration projet ont entièrement disparu ; éliminer également le plugin transitif nécessiterait une migration distincte hors de Vue CLI. Le lint, les trois tests Cypress de routes et le build de production réussissent après ce retrait.
 
 ## Modifications identifiées
 
@@ -231,8 +262,8 @@ FINISHED (session terminée)
 1. [x] Corriger l’initialisation globale des données.
 2. [x] Corriger le problème des joueurs invisibles.
 3. [x] Définir les modèles minimaux et les règles d’identifiants.
-4. [==>] Introduire Pinia et un service de persistance clairement séparé.
-5. [ ] Ajouter les tests unitaires minimaux des stores et modèles.
+4. [x] Introduire Pinia et un service de persistance clairement séparé.
+5. [==>] Ajouter les tests unitaires minimaux des stores et modèles.
 
 La migration Pinia est architecturale : je te présenterai son fonctionnement et demanderai ton accord avant de modifier le projet.
 

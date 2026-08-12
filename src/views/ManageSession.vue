@@ -116,8 +116,9 @@
 </template>
 
 <script>
-import { mapGetters, mapActions } from 'vuex'
+import { mapActions, mapState } from 'pinia'
 import { PlayerBuilder } from '@/models'
+import { useSessionStore } from '@/stores/session'
 
 export default {
   name: 'ManageSession',
@@ -131,16 +132,18 @@ export default {
     }
   },
   computed: {
-    ...mapGetters(['getCourts', 'getWaitingPlayers']),
-    courts() {
-      return this.getCourts
-    },
-    waitingPlayers() {
-      return this.getWaitingPlayers
-    }
+    ...mapState(useSessionStore, {
+      courts: 'getCourts',
+      waitingPlayers: 'getWaitingPlayers'
+    })
   },
   methods: {
-    ...mapActions(['setCourts', 'addPlayer', 'removePlayer', 'movePlayer']),
+    ...mapActions(useSessionStore, [
+      'setCourts',
+      'addPlayer',
+      'removePlayer',
+      'movePlayer'
+    ]),
     async initializeCourts() {
       if (this.numCourts > 0) {
         await this.setCourts(this.numCourts)

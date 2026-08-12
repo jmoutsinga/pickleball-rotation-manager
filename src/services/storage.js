@@ -157,6 +157,22 @@ class StorageService {
       throw new Error(`A player named "${name}" already exists`);
     }
   }
+
+  saveSessionGraph({
+                     location,
+                     session,
+                     rotation,
+                     courts,
+                     teams
+                   }) {
+    this.saveCourts(courts);
+    this.saveLocations([location]);
+    this.saveSession(session);
+    this.saveRotations([rotation]);
+    this.saveGames(rotation.games);
+    this.saveTeams(teams);
+  }
+
 }
 
 export default new StorageService();
