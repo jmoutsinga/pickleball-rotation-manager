@@ -26,6 +26,11 @@ pnpm-debug.log*
 # Test coverage
 coverage/
 
+# Cypress generated artifacts
+cypress/screenshots/
+cypress/videos/
+cypress/downloads/
+
 # Operating systems
 .DS_Store
 Thumbs.db
