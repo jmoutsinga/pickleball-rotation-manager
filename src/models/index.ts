@@ -1,6 +1,7 @@
 export * from './Court'
 export * from './Game'
 export * from './Location'
+export * from './LocationStatus'
 export * from './Player'
 export * from './PlayerStatus'
 export * from './Rotation'

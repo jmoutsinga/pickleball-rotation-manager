@@ -17,7 +17,18 @@ A Vue.js application to manage player rotations during pickleball training sessi
 npm install
 
 # Serve with hot-reload for development
+npm run dev
+
+# Compatibility alias for the development server
 npm run serve
+
+# Run lint and tests
+npm run lint
+npm run test:unit
+npm run test:e2e
+
+# Rerun related unit tests while developing
+npm run test:unit:watch
 
 # Build for production
 npm run build
@@ -33,7 +44,7 @@ npm run build
 
 ## Technologies Used
 
-- Vue.js 3
-- Vuex for state management
+- Vue.js 3 with Vite
+- Pinia for state management
 - Vue Router for navigation
 - Modern CSS with Grid and Flexbox

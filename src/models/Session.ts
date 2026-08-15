@@ -48,10 +48,10 @@ export class Session {
     return new Session(
       json.locationId,
       json.order,
-      new Date(json.startTime),
+      json.startTime ? new Date(json.startTime) : new Date(),
       json.endTime ? new Date(json.endTime) : null,
-      json.status,
-      new Map(Object.entries(json.playerWaitingTimes)),
+      json.status || SessionStatus.STARTED,
+      new Map(Object.entries(json.playerWaitingTimes || {})),
       json.id
     )
   }

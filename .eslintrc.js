@@ -8,7 +8,9 @@ module.exports = {
     'eslint:recommended'
   ],
   parserOptions: {
-    parser: '@babel/eslint-parser'
+    parser: '@typescript-eslint/parser',
+    ecmaVersion: 2020,
+    sourceType: 'module'
   },
   overrides: [
     {

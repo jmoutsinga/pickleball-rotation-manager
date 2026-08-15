@@ -1,6 +1,8 @@
 import {
   Game,
   Location,
+  LocationBuilder,
+  LocationStatus,
   Player,
   PlayerBuilder,
   PlayerStatus,
@@ -85,8 +87,51 @@ class StorageService {
     localStorage.setItem(STORAGE_KEYS.LOCATIONS, JSON.stringify(locations));
   }
 
+  saveLocation(location) {
+    this.assertLocation(location);
+    const locations = this.getLocations();
+    locations.push(location);
+    this.saveLocations(locations);
+  }
+
+  updateLocation(updatedLocation) {
+    this.assertLocation(updatedLocation)
+
+    const locations = this.getLocations()
+    const index = locations.findIndex(
+        location => location.id === updatedLocation.id
+    )
+
+    if (index === -1) {
+      throw new Error(
+          `Location "${updatedLocation.id}" does not exist`
+      )
+    }
+
+    locations[index] = updatedLocation
+    this.saveLocations(locations)
+  }
+
   getLocations() {
-    return this.getCollection(STORAGE_KEYS.LOCATIONS).map(Location.fromJson);
+    return this.getCollection(STORAGE_KEYS.LOCATIONS).map(LocationBuilder.fromJson);
+  }
+
+  getActiveLocations() {
+    return this.getLocations().filter(
+      location => location.status === LocationStatus.ACTIVE
+    );
+  }
+
+  deleteLocation(locationId) {
+    const locations = this.getLocations();
+    const location = locations.find(candidate => candidate.id === locationId);
+
+    if (!location) {
+      throw new Error(`Location "${locationId}" does not exist`);
+    }
+
+    location.changeStatus(LocationStatus.DELETED);
+    this.saveLocations(locations);
   }
 
   saveSessions(sessions) {
@@ -152,6 +197,12 @@ class StorageService {
     }
   }
 
+  assertLocation(location) {
+    if (!(location instanceof Location)) {
+      throw new TypeError('Locations must be created with LocationBuilder');
+    }
+  }
+
   assertUniquePlayerName(name, players, ignoredPlayerId = null) {
     if (players.some(player => player.id !== ignoredPlayerId && player.name === name)) {
       throw new Error(`A player named "${name}" already exists`);
@@ -165,12 +216,53 @@ class StorageService {
                      courts,
                      teams
                    }) {
-    this.saveCourts(courts);
-    this.saveLocations([location]);
+    const locations = this.getLocations();
+    const locationIndex = locations.findIndex(
+      candidate => candidate.id === location.id
+    );
+    if (locationIndex === -1) locations.push(location);
+    else locations[locationIndex] = location;
+
+    const storedRotations = this.getRotations();
+    const previousRotation = storedRotations.find(
+      candidate => candidate.id === rotation.id
+    );
+    const rotationIndex = storedRotations.findIndex(
+      candidate => candidate.id === rotation.id
+    );
+    if (rotationIndex === -1) storedRotations.push(rotation);
+    else storedRotations[rotationIndex] = rotation;
+
+    const replacedGameIds = new Set([
+      ...(previousRotation?.games.map(game => game.id) ?? []),
+      ...rotation.games.map(game => game.id)
+    ]);
+    const games = this.getGames().filter(
+      game => !replacedGameIds.has(game.id)
+    );
+
+    const replacedTeamIds = new Set([
+      ...(previousRotation?.games.flatMap(game => [
+        game.teamAId,
+        game.teamBId
+      ]) ?? []),
+      ...teams.map(team => team.id)
+    ]);
+    const storedTeams = this.getTeams().filter(
+      team => !replacedTeamIds.has(team.id)
+    );
+
+    this.saveCourts([
+      ...this.getCourts().filter(
+        court => court.locationId !== location.id
+      ),
+      ...courts
+    ]);
+    this.saveLocations(locations);
     this.saveSession(session);
-    this.saveRotations([rotation]);
-    this.saveGames(rotation.games);
-    this.saveTeams(teams);
+    this.saveRotations(storedRotations);
+    this.saveGames([...games, ...rotation.games]);
+    this.saveTeams([...storedTeams, ...teams]);
   }
 
 }

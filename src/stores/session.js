@@ -3,10 +3,11 @@ import storageService from '../services/storage'
 import {
     Court,
     Game,
-    Location,
+    LocationBuilder,
     PlayerStatus,
     Rotation,
     Session,
+    SessionStatus,
     Team
 } from '@/models'
 
@@ -17,7 +18,8 @@ export const useSessionStore = defineStore('session', {
         rotation: null,
         courts: [],
         teams: [],
-        players: []
+        players: [],
+        sessions: []
     }),
 
     getters: {
@@ -44,12 +46,69 @@ export const useSessionStore = defineStore('session', {
             state.rotation?.waitingPlayers ?? [],
 
         getTeamById: state => teamId =>
-            state.teams.find(team => team.id === teamId) ?? null
+            state.teams.find(team => team.id === teamId) ?? null,
+
+        startedSessionsByLocationId: state => locationId =>
+            state.sessions.filter(session =>
+                session.locationId === locationId &&
+                session.status === SessionStatus.STARTED
+            ),
+
+        canEditCourtCountByLocationId: state => locationId =>
+            !state.sessions.some(session =>
+                session.locationId === locationId &&
+                session.status === SessionStatus.STARTED
+            )
     },
 
     actions: {
-        async ensureSession() {
-            if (this.session && this.rotation) return
+        loadSessions() {
+            this.sessions = storageService.getSessions()
+        },
+
+        createSessionForLocation(locationId) {
+            const sessions = storageService.getSessions()
+            const locationSessions = sessions.filter(
+                session => session.locationId === locationId
+            )
+            const hasStartedSession = locationSessions.some(
+                session => session.status === SessionStatus.STARTED
+            )
+
+            if (hasStartedSession) {
+                throw new Error(
+                    `Location "${locationId}" already has a started session`
+                )
+            }
+
+            const maxOrder = locationSessions.reduce(
+                (maximum, session) => Math.max(maximum, session.order),
+                0
+            )
+            const session = new Session(locationId, maxOrder + 1)
+
+            storageService.saveSession(session)
+            this.loadSessions()
+
+            return session
+        },
+
+        async ensureSession(identifiers = null) {
+            const hasIdentifiers = identifiers !== null
+
+            if (
+                this.session &&
+                this.rotation &&
+                (
+                    !hasIdentifiers ||
+                    (
+                        this.location?.id === identifiers.locationId &&
+                        this.session.id === identifiers.sessionId
+                    )
+                )
+            ) {
+                return
+            }
 
             const players = storageService.getPlayers()
             const locations = storageService.getLocations()
@@ -58,25 +117,54 @@ export const useSessionStore = defineStore('session', {
             const storedCourts = storageService.getCourts()
             const storedTeams = storageService.getTeams()
 
-            let location = locations.find(
-                candidate => candidate.name === 'default'
-            )
+            let location
+            let session
 
-            if (!location) {
-                location = new Location(
-                    'default',
-                    '',
-                    Math.max(storedCourts.length, 1)
+            if (hasIdentifiers) {
+                const { locationId, sessionId } = identifiers
+
+                location = locations.find(
+                    candidate => candidate.id === locationId
                 )
-            }
 
-            let session = sessions.find(candidate =>
-                candidate.locationId === location.id &&
-                candidate.status === 'STARTED'
-            )
+                if (!location) {
+                    throw new Error(`Location "${locationId}" does not exist`)
+                }
 
-            if (!session) {
-                session = new Session(location.id, 1)
+                session = sessions.find(
+                    candidate => candidate.id === sessionId
+                )
+
+                if (!session) {
+                    throw new Error(`Session "${sessionId}" does not exist`)
+                }
+
+                if (session.locationId !== location.id) {
+                    throw new Error(
+                        `Session "${sessionId}" does not belong to location "${locationId}"`
+                    )
+                }
+            } else {
+                location = locations.find(
+                    candidate => candidate.name === 'default'
+                )
+
+                if (!location) {
+                    location = new LocationBuilder()
+                        .withName('default')
+                        .withDescription('')
+                        .withNbCourts(Math.max(storedCourts.length, 1))
+                        .build()
+                }
+
+                session = sessions.find(candidate =>
+                    candidate.locationId === location.id &&
+                    candidate.status === 'STARTED'
+                )
+
+                if (!session) {
+                    session = this.createSessionForLocation(location.id)
+                }
             }
 
             let courts = storedCourts
@@ -150,18 +238,23 @@ export const useSessionStore = defineStore('session', {
             this.courts = courts
             this.teams = teams
             this.players = players
+            this.sessions = storageService.getSessions()
 
             storageService.savePlayers(players)
             storageService.saveSessionGraph(this)
         },
 
         setCourts(numCourts) {
-            const location = new Location(
-                'default',
-                this.location?.description ?? '',
-                numCourts,
-                this.location?.id
-            )
+            const locationBuilder = new LocationBuilder()
+                .withName('default')
+                .withDescription(this.location?.description ?? '')
+                .withNbCourts(numCourts)
+
+            if (this.location?.id) {
+                locationBuilder.withId(this.location.id)
+            }
+
+            const location = locationBuilder.build()
 
             const courts = Array.from(
                 { length: numCourts },

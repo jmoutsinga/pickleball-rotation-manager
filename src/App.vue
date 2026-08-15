@@ -1,11 +1,13 @@
 <template>
-  <div id="app">
+  <div class="app">
     <nav class="navbar">
       <router-link to="/">Home</router-link> |
       <router-link to="/manage">Manage Session</router-link> |
       <router-link to="/manage-players">Manage Players</router-link>
     </nav>
-    <router-view/>
+    <main class="app-content">
+      <router-view/>
+    </main>
   </div>
 </template>
 
@@ -19,13 +21,33 @@ export default {
 </script>
 
 <style>
+html,
+body,
 #app {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+}
+
+.app {
+  min-height: 100vh;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
   font-family: Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-align: center;
   color: #2c3e50;
-  margin-top: 60px;
+  padding-top: 20px;
+}
+
+.app-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
 }
 
 .navbar {

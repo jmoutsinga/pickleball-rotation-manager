@@ -6,7 +6,28 @@ import { useSessionStore } from '@/stores/session'
 
 async function ensureSessionGuard() {
   const sessionStore = useSessionStore()
-  await sessionStore.ensureSession()
+  try {
+    await sessionStore.ensureSession()
+  } catch (error) {
+    console.error('Session guard error:', error)
+    return { name: 'home' }
+  }
+}
+
+async function ensureIdentifiedSessionGuard(to) {
+  const { locationId, sessionId } = to.params
+
+  if (typeof locationId !== 'string' || typeof sessionId !== 'string') {
+    return { name: 'home' }
+  }
+
+  const sessionStore = useSessionStore()
+  try {
+    await sessionStore.ensureSession({ locationId, sessionId })
+  } catch (error) {
+    console.error('Identified session guard error:', error)
+    return { name: 'home' }
+  }
 }
 
 
@@ -23,6 +44,12 @@ const routes = [
     beforeEnter: ensureSessionGuard
   },
   {
+    path: '/manage/:locationId/:sessionId',
+    name: 'manageSession',
+    component: ManageSession,
+    beforeEnter: ensureIdentifiedSessionGuard
+  },
+  {
     path: '/manage-players',
     name: 'managePlayers',
     component: ManagePlayers,
@@ -31,7 +58,7 @@ const routes = [
 ]
 
 const router = createRouter({
-  history: createWebHistory(process.env.BASE_URL),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes
 })
 
