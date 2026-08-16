@@ -1,5 +1,13 @@
 <template>
   <div class="home" @click="clearSelection">
+    <button
+      v-if="canInitializeSampleData"
+      class="sample-data-initializer"
+      type="button"
+      @click.stop="handleSampleDataInitialization"
+    >
+      Initialize sample data
+    </button>
     <h1>Pickleball Training Session Manager</h1>
     <p>Welcome to the Pickleball Training Session Manager !</p>
     <p>This application helps you manage player rotations during a pickleball training session.</p>
@@ -100,6 +108,10 @@ import CardGrid from '@/components/CardGrid.vue'
 import CreateEntityCard from '@/components/CreateEntityCard.vue'
 import LocationCard from '@/components/LocationCard.vue'
 import LocationForm from '@/components/LocationForm.vue'
+import {
+  hasSampleDataBeenInitialized,
+  initializeSampleData
+} from '@/services/sampleData'
 import { useLocationStore } from '@/stores/location'
 import { useSessionStore } from '@/stores/session'
 
@@ -121,6 +133,7 @@ const LOCATION_FORM_ID = 'location-form'
 const locationStore = useLocationStore()
 const sessionStore = useSessionStore()
 const router = useRouter()
+const canInitializeSampleData = ref(!hasSampleDataBeenInitialized())
 const selectedLocationId = ref<string | null>(null)
 const isLocationModalOpen = ref(false)
 const editingLocation = shallowRef<EditableLocation | null>(null)
@@ -148,6 +161,16 @@ onMounted(() => {
 
 function selectLocation(locationId: string): void {
   selectedLocationId.value = locationId
+}
+
+function handleSampleDataInitialization(): void {
+  const initialized = initializeSampleData()
+
+  if (initialized) {
+    locationStore.loadLocations()
+  }
+
+  canInitializeSampleData.value = false
 }
 
 function openCreateLocationModal(): void {
@@ -255,6 +278,34 @@ function clearSelection(): void {
   flex: 1;
   box-sizing: border-box;
   padding: 20px;
+}
+
+.sample-data-initializer {
+  display: inline-flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1.5rem;
+  border: 2px solid #237a57;
+  border-radius: 0.5rem;
+  background: linear-gradient(135deg, #42b983, #2f9d6c);
+  box-shadow: 0 5px 14px rgb(47 157 108 / 28%);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  transition: box-shadow 160ms ease, transform 160ms ease;
+}
+
+.sample-data-initializer:hover {
+  box-shadow: 0 7px 18px rgb(47 157 108 / 38%);
+  transform: translateY(-1px);
+}
+
+.sample-data-initializer:focus-visible {
+  outline: 3px solid #2c3e50;
+  outline-offset: 3px;
 }
 
 .modal-action {

@@ -134,6 +134,72 @@ describe('Application routes', () => {
     })
   })
 
+  it('initializes and persists sample data only once from Home', () => {
+    const expectedLocations = [
+      { name: 'Le Grand Saconnex', nbCourts: 4 },
+      { name: 'Genève', nbCourts: 2 },
+      { name: 'Lancy', nbCourts: 6 },
+      { name: 'Carouge', nbCourts: 2 },
+      { name: 'Bellevue', nbCourts: 8 }
+    ]
+
+    cy.visit('/', {
+      onBeforeLoad: window => {
+        window.localStorage.clear()
+      }
+    })
+
+    cy.get('.home').then(home => {
+      expect(home[0].firstElementChild).to.have.class(
+        'sample-data-initializer'
+      )
+    })
+    cy.get('.sample-data-initializer')
+      .should('be.visible')
+      .invoke('text')
+      .then(text => expect(text.trim()).to.equal('Initialize sample data'))
+    cy.get('.sample-data-initializer')
+      .click()
+
+    cy.get('.sample-data-initializer').should('not.exist')
+    cy.get('.location-card').should('have.length', 5)
+    expectedLocations.forEach(({ name, nbCourts }) => {
+      cy.contains('.location-card', name)
+        .should('contain.text', `${nbCourts} courts`)
+    })
+
+    cy.window().then(window => {
+      const locations = JSON.parse(
+        window.localStorage.getItem('pickleball_locations')
+      )
+      const players = JSON.parse(
+        window.localStorage.getItem('pickleball_players')
+      )
+
+      expect(
+        window.localStorage.getItem('pickleball_sample_data_initialized')
+      ).to.equal('true')
+      expect(locations.map(({ name, nbCourts, status }) => ({
+        name,
+        nbCourts,
+        status
+      }))).to.deep.equal(expectedLocations.map(location => ({
+        ...location,
+        status: 'ACTIVE'
+      })))
+      expect(players).to.have.length(50)
+      expect(new Set(players.map(player => player.name)).size).to.equal(50)
+      expect(players.every(player => player.status === 'AVAILABLE')).to.be.true
+    })
+
+    cy.reload()
+    cy.get('.sample-data-initializer').should('not.exist')
+    cy.get('.location-card').should('have.length', 5)
+
+    cy.visit('/manage-players')
+    cy.get('.player-card').should('have.length', 50)
+  })
+
   it('centers the Location commands on the top edge above the title', () => {
     cy.visit('/', {
       onBeforeLoad: window => {

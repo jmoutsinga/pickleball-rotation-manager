@@ -2,11 +2,11 @@
 
 ## Suivi
 
-- Étape en cours : **3.19 — Finaliser le cycle de vie de `RotationStatus` et les invariants du graphe**.
-- État : **l'étape 2 est terminée jusqu'à 2.17 et la tranche participants jusqu'à ses ajustements 3.18.1 et 3.18.2 est terminée ; l'étape 3 reprend avec le cycle de vie complet des Rotations**.
+- Étape en cours : **3.19 — Finaliser le cycle de vie de RotationStatus, les horaires de Rotation, la numérotation de Game et les invariants du graphe**.
+- État : **l'étape 1.27 d'initialisation locale des données de démonstration est terminée ; les étapes 2.17 et 3.18.2 restent terminées**.
 - Dernières étapes terminées : **0.1** à **0.7**, ainsi que les sous-étapes **1 à 11** de la migration Vuex → Pinia, **1 à 7** de la migration Vue CLI → Vite, **1 à 7** de l'introduction des tests unitaires Vitest et **1 à 7** des tests de composants Vue.
 - Éléments anticipés : la persistance et la restauration du graphe désormais suivies en **3.22**, ainsi que les affectations manuelles de l'étape **4.4**, sont partiellement implémentées. Les étapes 3 et 4 restent à réaliser dans leur ensemble.
-- Prochaine action : analyser puis finaliser en TDD les transitions de `RotationStatus`, les horaires, la numérotation des Games et les invariants du graphe prévus en 3.19.
+- Prochaine action : reprendre l'étape 3.19 consacrée au cycle de vie de `RotationStatus`, aux horaires de Rotation, à la numérotation de Game et aux invariants du graphe.
 - Marqueurs d'avancement : `[x]` terminée ; `[==>]` en cours ; `[ ]` pas encore commencée.
 
 ### Migration Vuex → Pinia
@@ -163,6 +163,13 @@
     - [x] Dans `HomeView`, remplacer `selectedLocationId` par l'identifiant retourné uniquement après le succès de la création, sans modifier la sélection lors d'une édition.
     - [x] Vérifier qu'une Location précédemment sélectionnée perd son état selected et que la nouvelle carte reçoit le rail de commandes ainsi que l'action de Session.
     - [x] Couvrir le contrat du store, le composant et le parcours Cypress, puis valider type-check, lint, Vitest, Cypress et build Vite.
+27. [x] Ajouter au-dessus du `h1` de Home un bouton visible « Initialize sample data » permettant une initialisation locale unique et non destructive des données de démonstration.
+    - [x] Créer un service applicatif indépendant de la vue qui construit cinq Locations actives — Le Grand Saconnex (4), Genève (2), Lancy (6), Carouge (2), Bellevue (8) — et cinquante Players `AVAILABLE` répartis exactement en 20 prénoms masculins, 15 féminins et 15 mixtes.
+    - [x] Fusionner les exemples avec les collections existantes sans écrasement, ignorer les noms déjà présents et construire toutes les entités avant de commencer la persistance.
+    - [x] Protéger le cas d'usage par le flag `pickleball_sample_data_initialized`, vérifié également dans le service, et ne l'écrire qu'après la sauvegarde réussie des deux collections.
+    - [x] Afficher le bouton uniquement lorsque le flag est absent, le placer avant le titre, le rendre visuellement proéminent et le retirer immédiatement après le clic réussi.
+    - [x] Recharger le store des Locations après initialisation ; les Players seront restaurés par `ManagePlayers` lors de son montage normal.
+    - [x] Couvrir en TDD les quantités, valeurs, statuts, proportions de prénoms, fusion non destructive, idempotence, visibilité/ordre du bouton et persistance après rechargement.
 
 ### Manage Players — étape 2
 
@@ -228,7 +235,7 @@
 | 0.7 — Tests de composants Vue avec Vitest | Terminée — rendu, routage substitué et interaction avec Pinia couverts |
 | 0.8 — Modernisation progressive de l'outillage | Alignement immédiat terminé — migration globale reportée à l'étape 6.11 |
 | 0.9 — Contrôle de types Vue | Terminée — `vue-tsc --noEmit` automatisé en première étape de `prebuild` |
-| 1 — Home et Locations | Terminée — fonctionnalités validées jusqu'à l'étape 1.25 |
+| 1 — Home et Locations | Terminée — fonctionnalités validées jusqu'à l'étape 1.27 ; la sous-étape historique 1.26 reste déplacée en 6.11 |
 | 2 — Manage Players | Terminée — 17 sous-étapes réalisées par TDD et chaîne de validation complète réussie |
 | 3 — Modèle, participants et structure de Manage Session | En cours — sélection persistante des participants terminée en 3.18 ; prochaine tranche en 3.19 |
 | 4 — Préparation et lancement d’une Rotation | À faire — 4.4 partiellement anticipée |
@@ -398,6 +405,10 @@ Les décisions antérieures sont horodatées à la date de leur consignation dan
 - **2026-08-16 15:34:11** — Clôturer l'ajustement 2.17. « Show Deleted Players » est désormais un switch natif de 44 × 24 px : piste grise désactivée, piste verte activée, curseur blanc animé, survol et focus clavier visibles. Le contrôle conserve son identifiant, son label, `type="checkbox"`, `role="switch"` et son `v-model`, sans nouvelle dépendance. Cypress vérifie les couleurs calculées, la forme arrondie, le déplacement du curseur et le filtrage réel. Validation finale : contrôle TypeScript, lint, 163 tests Vitest répartis dans 23 fichiers, 16 scénarios Cypress et build Vite de production (86 modules) réussissent.
 - **2026-08-16 15:42:12** — Ajouter l'ajustement 3.18.2 pour supprimer le double ascenseur de la phase de sélection. Retirer la hauteur maximale et les propriétés `overflow` qui font de `SessionForm` et de son conteneur de grille un contexte de défilement autonome ; laisser le document défiler et conserver l'en-tête sticky à `top: 0`. Justification : `position: sticky` se rattache au plus proche ancêtre scrollable ; supprimer ce dernier permet au titre et au bouton de suivre l'unique scroll de la page.
 - **2026-08-16 15:45:42** — Clôturer l'ajustement 3.18.2. `SessionForm` ne fixe plus de `max-height` et ni le formulaire ni son conteneur de grille ne définissent d'`overflow`; leur hauteur suit donc les cartes et seul le document porte l'ascenseur vertical. L'en-tête sticky conserve le titre et « Start Session » à `top: 0`. Cypress utilise 20 Players pour provoquer un débordement réel, vérifie l'égalité `scrollHeight/clientHeight` du conteneur, le dépassement du document et la position visible de l'en-tête après scroll jusqu'en bas. Validation finale : contrôle TypeScript, lint, 163 tests Vitest répartis dans 23 fichiers, 16 scénarios Cypress et build Vite de production (86 modules) réussissent.
+- **2026-08-17 01:31:37** — Ajouter l'étape 1.27 pour fournir un jeu de démonstration local initialisable une seule fois depuis Home. Utiliser un service applicatif dédié, le flag `pickleball_sample_data_initialized` et une fusion par nom qui préserve les données existantes ; en cas de collision, conserver l'entité utilisateur et ne pas créer le doublon. Écrire le flag uniquement après les Locations et Players. Répartir les 50 prénoms en 20 masculins, 15 féminins et 15 mixtes. Justification : offrir une démonstration immédiatement exploitable sur un hébergement statique sans coupler `HomeView` aux données, sans écraser un essai existant et sans introduire de backend temporaire.
+- **2026-08-17 01:33:37** — Implémenter en TDD le service `sampleData` : les cinq Locations et les trois listes de 20/15/15 prénoms sont construites par les builders existants, les collisions de noms sont ignorées sans modification des entités présentes, un second appel est refusé par le flag et une tentative en erreur restaure les deux collections antérieures avant de laisser le flag absent. Validation intermédiaire : 3 tests de service et contrôle TypeScript réussissent.
+- **2026-08-17 01:38:36** — Intégrer le cas d'usage dans `HomeView` avec une `ref` locale qui pilote le rendu conditionnel du bouton et un rechargement explicite du store Location après succès. Le bouton intercepte son clic, précède le `h1`, reste disponible si le service lève une erreur et disparaît dès que le flag est posé. Ajouter un parcours Cypress qui contrôle le contenu créé, l'unicité, les statuts et la persistance après rechargement ; ce nouveau cas devra lui aussi posséder un miroir Playwright en 6.12. Validation intermédiaire : 29 tests Vitest ciblés, contrôle TypeScript, lint et 17 scénarios Cypress réussissent.
+- **2026-08-17 01:39:47** — Clôturer l'étape 1.27. Home propose une initialisation unique tant que `pickleball_sample_data_initialized` est absent ; le service fusionne sans écraser les données existantes, crée les cinq Locations et les cinquante Players demandés, puis rafraîchit immédiatement la grille. Le flag n'est posé qu'après les deux sauvegardes et masque durablement le bouton. Validation finale : contrôle TypeScript, lint, 168 tests Vitest répartis dans 24 fichiers, 17 scénarios Cypress, `git diff --check` et build Vite de production (87 modules) réussissent.
 
 ## Modifications identifiées
 
@@ -620,6 +631,7 @@ La migration Pinia est architecturale : je te présenterai son fonctionnement et
 20. [x] Transformer les actions Start/Manage en pictogrammes Play/Fast Forward de 52 px, positionnés à 4 px du coin supérieur droit, avec les libellés Start/Continue et sans déplacer les éléments centrés.
 21. [x] Empêcher les clics de Create Location et des modales de remonter jusqu'à la désélection de `HomeView`, tout en conservant la désélection extérieure.
 22. [x] Après une création réussie, sélectionner la nouvelle Location et désélectionner automatiquement celle qui l'était auparavant.
+23. [x] Ajouter un bouton « Initialize sample data » au-dessus du titre, conditionné par un flag persistant, et créer une fois cinq Locations ainsi que cinquante Players de démonstration sans écraser les données existantes.
 Chaque point fera l’objet d’une modification limitée.
 
 ### Étape 2 — Manage Players
@@ -716,11 +728,11 @@ Chaque point fera l’objet d’une modification limitée.
     - [ ] Documenter l'activation du formateur partagé dans IntelliJ IDEA et les commandes indépendantes de l'IDE.
     - [ ] Une fois la configuration centralisée validée, appliquer le formatage à tout le code du projet dans un lot mécanique distinct, puis vérifier le type-check, le lint, tous les tests et le build.
 12. [ ] Introduire Playwright et créer un test Playwright miroir pour chaque test Cypress après stabilisation de l'outillage modernisé, sans retirer la suite Cypress.
-    - [ ] Réinventorier tous les fichiers et scénarios Cypress à cette date, compter les cas réellement générés par les tests paramétrés et établir une matrice de correspondance Cypress ↔ Playwright exhaustive ; le référentiel actuel contient 16 scénarios dans `cypress/e2e/routes.cy.js`.
+    - [ ] Réinventorier tous les fichiers et scénarios Cypress à cette date, compter les cas réellement générés par les tests paramétrés et établir une matrice de correspondance Cypress ↔ Playwright exhaustive ; le référentiel actuel contient 17 scénarios dans `cypress/e2e/routes.cy.js`.
     - [ ] Installer `@playwright/test` et les navigateurs strictement nécessaires, puis créer une configuration utilisant le même serveur Vite de test, la même `baseURL`, un viewport et des délais explicitement alignés autant que possible avec Cypress, ainsi que des traces/captures conservées en cas d'échec.
     - [ ] Ajouter des fixtures Playwright pour initialiser et nettoyer `localStorage`, détecter les erreurs JavaScript de page et collecter les réponses HTTP en erreur avec le même niveau de protection que la suite Cypress.
     - [ ] Créer les équivalents Playwright des quatre cas paramétrés d'accès direct et de rechargement de route, puis du scénario de redirection d'une route identifiée invalide.
-    - [ ] Créer les équivalents Playwright de tous les parcours Home, y compris désélection extérieure, largeur des cartes, géométrie des commandes, suppression logique, verrouillage du nombre de Courts, conservation de la sélection dans les modales et sélection après création.
+    - [ ] Créer les équivalents Playwright de tous les parcours Home, y compris désélection extérieure, largeur des cartes, initialisation persistante des données de démonstration, géométrie des commandes, suppression logique, verrouillage du nombre de Courts, conservation de la sélection dans les modales et sélection après création.
     - [ ] Créer les équivalents Playwright de tous les parcours Manage Players : chargement et filtre sans Session implicite, cycle Create/Edit/Delete/Restore et refus de Delete pour un Player lié à une Session `STARTED`.
     - [ ] Créer l'équivalent Playwright du parcours Manage Session couvrant la sélection persistante d'au moins quatre participants `AVAILABLE`, le rechargement du brouillon et le démarrage différé de la Session.
     - [ ] Conserver pour chaque paire les mêmes données initiales, étapes utilisateur et résultats observables ; autoriser des locators idiomatiques propres à chaque runner lorsque leur intention fonctionnelle reste équivalente.

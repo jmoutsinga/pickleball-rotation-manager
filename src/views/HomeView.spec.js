@@ -10,12 +10,23 @@ import HomeView from './HomeView.vue'
 
 enableAutoUnmount(afterEach)
 
-const { routerPush } = vi.hoisted(() => ({
-  routerPush: vi.fn()
+const {
+  routerPush,
+  hasSampleDataBeenInitialized,
+  initializeSampleData
+} = vi.hoisted(() => ({
+  routerPush: vi.fn(),
+  hasSampleDataBeenInitialized: vi.fn(),
+  initializeSampleData: vi.fn()
 }))
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: routerPush })
+}))
+
+vi.mock('@/services/sampleData', () => ({
+  hasSampleDataBeenInitialized,
+  initializeSampleData
 }))
 
 const createLocation = (
@@ -63,6 +74,35 @@ const mountHome = (locations, sessions = []) => {
 describe('HomeView', () => {
   beforeEach(() => {
     routerPush.mockReset()
+    hasSampleDataBeenInitialized.mockReset()
+    hasSampleDataBeenInitialized.mockReturnValue(false)
+    initializeSampleData.mockReset()
+    initializeSampleData.mockReturnValue(true)
+  })
+
+  it('shows the sample initializer before the title and hides it after use', async () => {
+    const { wrapper, locationStore } = mountHome([])
+    const initializer = wrapper.get('.sample-data-initializer')
+
+    expect(wrapper.get('.home').element.firstElementChild).toBe(
+      initializer.element
+    )
+    expect(initializer.element.nextElementSibling?.tagName).toBe('H1')
+    expect(initializer.text()).toBe('Initialize sample data')
+
+    await initializer.trigger('click')
+
+    expect(initializeSampleData).toHaveBeenCalledOnce()
+    expect(locationStore.loadLocations).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('.sample-data-initializer').exists()).toBe(false)
+  })
+
+  it('hides the sample initializer when its persistent flag already exists', () => {
+    hasSampleDataBeenInitialized.mockReturnValue(true)
+
+    const { wrapper } = mountHome([])
+
+    expect(wrapper.find('.sample-data-initializer').exists()).toBe(false)
   })
 
   it('renders the creation card before the locations supplied by Pinia', () => {
