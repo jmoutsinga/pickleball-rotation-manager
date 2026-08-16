@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { Game } from './Game'
 import { PlayerBuilder } from './Player'
 import { Rotation } from './Rotation'
+import { RotationStatus } from './RotationStatus'
 
 describe('Rotation', () => {
   it('restores games and waiting players from JSON', () => {
@@ -31,7 +32,21 @@ describe('Rotation', () => {
     expect(restoredRotation).toBeInstanceOf(Rotation)
     expect(restoredRotation.games[0]).toBeInstanceOf(Game)
     expect(restoredRotation.waitingPlayers[0].id).toBe('player-1')
+    expect(restoredRotation.status).toBe(RotationStatus.CREATED)
     expect(restoredRotation.toJSON()).toEqual(rotation.toJSON())
+  })
+
+  it('restores a legacy rotation without status as CREATED', () => {
+    const restoredRotation = Rotation.fromJson({
+      id: 'rotation-1',
+      sessionId: 'session-1',
+      order: 1,
+      games: [],
+      waitingPlayers: []
+    })
+
+    expect(restoredRotation.status).toBe(RotationStatus.CREATED)
+    expect(restoredRotation.toJSON().status).toBe(RotationStatus.CREATED)
   })
 
   it('requires a session and a positive order', () => {

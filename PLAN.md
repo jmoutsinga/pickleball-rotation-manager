@@ -2,11 +2,11 @@
 
 ## Suivi
 
-- Étape en cours : **1.26 — Moderniser l'outillage du projet**.
-- État : **étapes 1.1 à 1.25 terminées ; toute Location nouvellement créée remplace désormais la sélection précédente et apparaît immédiatement sélectionnée dans la grille**.
+- Étape en cours : **3.19 — Finaliser le cycle de vie de `RotationStatus` et les invariants du graphe**.
+- État : **l'étape 2 est terminée jusqu'à 2.17 et la tranche participants jusqu'à ses ajustements 3.18.1 et 3.18.2 est terminée ; l'étape 3 reprend avec le cycle de vie complet des Rotations**.
 - Dernières étapes terminées : **0.1** à **0.7**, ainsi que les sous-étapes **1 à 11** de la migration Vuex → Pinia, **1 à 7** de la migration Vue CLI → Vite, **1 à 7** de l'introduction des tests unitaires Vitest et **1 à 7** des tests de composants Vue.
-- Éléments anticipés : la persistance et la restauration du graphe de l'étape **3.11**, ainsi que les affectations manuelles de l'étape **4.4**, sont partiellement implémentées. Les étapes 3 et 4 restent à réaliser dans leur ensemble.
-- Prochaine action : inventorier les versions et configurations actuelles de l'outillage avant de préparer les lots compatibles de l'étape 1.26.
+- Éléments anticipés : la persistance et la restauration du graphe désormais suivies en **3.22**, ainsi que les affectations manuelles de l'étape **4.4**, sont partiellement implémentées. Les étapes 3 et 4 restent à réaliser dans leur ensemble.
+- Prochaine action : analyser puis finaliser en TDD les transitions de `RotationStatus`, les horaires, la numérotation des Games et les invariants du graphe prévus en 3.19.
 - Marqueurs d'avancement : `[x]` terminée ; `[==>]` en cours ; `[ ]` pas encore commencée.
 
 ### Migration Vuex → Pinia
@@ -33,6 +33,7 @@
 6. [x] Introduire Vitest pour les tests unitaires purs des modèles, stores et algorithmes.
 7. [x] Introduire Vitest avec Vue Test Utils pour les tests de composants Vue.
 8. [x] Conserver Cypress pour les parcours E2E exécutés dans un navigateur complet.
+9. [ ] Après la modernisation globale de l'outillage en 6.11, introduire Playwright et créer une suite miroir couvrant chaque test Cypress du projet selon l'étape 6.12, afin de conserver et comparer durablement les deux runners.
 
 ### Migration Vue CLI → Vite
 
@@ -69,7 +70,7 @@
 1. [x] Identifier le décalage entre TypeScript `5.9.3`, ESLint `7.32.0` et `@typescript-eslint` `5.62.0`.
 2. [x] Mettre ESLint à jour vers `8.57.0`, aligner `@typescript-eslint/parser` et `@typescript-eslint/eslint-plugin` sur la version majeure 8 afin de prendre en charge TypeScript `5.9.3`, puis passer `eslint-plugin-vue` à la version majeure 9 requise pour interpréter correctement les macros TypeScript de `<script setup>`.
 3. [x] Vérifier l'arbre des dépendances, l'absence du warning `typescript-estree`, le lint, les tests Vitest, le contrôle TypeScript et le build Vite, puis reprendre la validation de `CreateEntityCard`.
-4. [x] Conserver provisoirement le format `.eslintrc.js` jusqu'à la migration globale de l'outillage planifiée après `HomeView`.
+4. [x] Conserver provisoirement le format `.eslintrc.js` jusqu'à la migration globale de l'outillage planifiée en 6.11.
 
 ### Contrôle de types Vue — étape 0.9
 
@@ -162,13 +163,57 @@
     - [x] Dans `HomeView`, remplacer `selectedLocationId` par l'identifiant retourné uniquement après le succès de la création, sans modifier la sélection lors d'une édition.
     - [x] Vérifier qu'une Location précédemment sélectionnée perd son état selected et que la nouvelle carte reçoit le rail de commandes ainsi que l'action de Session.
     - [x] Couvrir le contrat du store, le composant et le parcours Cypress, puis valider type-check, lint, Vitest, Cypress et build Vite.
-26. [ ] Après l'implémentation et la validation de `HomeView`, inventorier puis migrer tout l'outillage du projet vers ses versions stables courantes respectives — notamment ESLint et sa configuration plate, plugins ESLint, TypeScript, Vite, Vitest, Vue Test Utils, Cypress et utilitaires de build/test — par lots compatibles et vérifiables.
-    - [ ] Centraliser l'indentation et les règles de base dans un fichier `.editorconfig` versionné et reconnu par IntelliJ IDEA ainsi que par les autres éditeurs compatibles.
-    - [ ] Installer localement un formateur déterministe compatible avec les SFC Vue, verrouiller sa version et versionner sa configuration commune.
-    - [ ] Aligner ESLint et le formateur afin que les règles de qualité Vue/TypeScript et les règles de présentation ne se contredisent pas.
-    - [ ] Ajouter des scripts npm `format` et `format:check`, puis intégrer la vérification du formatage à la chaîne automatisée sans mutation des fichiers.
-    - [ ] Documenter l'activation du formateur partagé dans IntelliJ IDEA et les commandes indépendantes de l'IDE.
-    - [ ] Une fois la configuration centralisée validée, appliquer le formatage à tout le code du projet dans un lot mécanique distinct, puis vérifier le type-check, le lint, tous les tests et le build.
+
+### Manage Players — étape 2
+
+1. [x] Clarifier le cycle de vie du Player : `AVAILABLE` avant/après une Rotation, `PLAYING` sur un Court après démarrage, `WAITING` hors Court pendant la Rotation et `DELETED` pour la suppression logique ; remplacer `ACTIVE` par `PLAYING` et migrer les données historiques `ACTIVE`.
+2. [x] Introduire `RotationStatus { CREATED, IN_PROGRESS, SCORING, FINISHED }`, persister ce statut et restaurer les anciennes Rotations sans statut en `CREATED` ; conserver les transitions d'interface détaillées dans les étapes 4 et 5.
+3. [x] Créer `usePlayerStore`, charger tous les Players persistés sans initialiser de Session et découpler `/manage-players` du garde `ensureSessionGuard`.
+4. [x] Implémenter en TDD la création persistante d'un Player `AVAILABLE`, avec normalisation, unicité du nom parmi tous les statuts, rechargement réactif et retour de l'instance créée.
+5. [x] Implémenter en TDD l'édition persistante du seul nom, en conservant l'identifiant et le statut et en refusant les identifiants inconnus ainsi que les doublons.
+6. [x] Implémenter en TDD la suppression logique vers `DELETED` et la restauration vers `AVAILABLE`; interdire la suppression lorsqu'une Rotation rattachée à une Session `STARTED` référence le Player dans une Team ou sa waiting list.
+7. [x] Adapter `useSessionStore` et la persistance afin qu'un Player `DELETED` ne soit jamais réintroduit dans une nouvelle Rotation, que les déplacements avant démarrage conservent `AVAILABLE` et que les anciens statuts `ACTIVE` soient restaurés en `PLAYING`.
+8. [x] Créer `PlayerForm`, limité au nom pour l'instant, avec un brouillon local réactif, les modes création/édition, une validation accessible et l'émission d'un DTO sans dépendance au store.
+9. [x] Créer `PlayerCard` avec le rendu du nom/statut, une surface de sélection accessible, un état selected contrôlé par prop et un fond gris pour `DELETED`.
+10. [x] Ajouter à `PlayerCard` les commandes SVG accessibles : Edit/Delete uniquement pour un Player sélectionné non supprimé, et Restore uniquement pour un Player supprimé sélectionné, centré en haut et entièrement contenu dans la carte.
+11. [x] Remplacer la table de `ManagePlayers` par `CardGrid`, placer `CreateEntityCard` en première position, rendre une `PlayerCard` par Player visible et conserver une sélection locale unique avec désélection extérieure.
+12. [x] Ajouter sous le titre la recherche dynamique par sous-chaîne contiguë, insensible à la casse et aux accents, puis le toggle accessible « Show Deleted Players », désactivé par défaut ; effacer toute sélection devenue invisible.
+13. [x] Intégrer la création dans `BaseModal` avec `PlayerForm`, fermer uniquement après succès et sélectionner automatiquement le Player créé.
+14. [x] Intégrer l'édition dans la même modale, préremplir le nom, préserver identifiant/statut/sélection et maintenir la modale ouverte en cas d'échec.
+15. [x] Intégrer la confirmation de suppression logique dans `BaseModal` et l'action Restore directe ; si Show Deleted Players est actif, conserver la carte supprimée sélectionnée, sinon la masquer et effacer la sélection, puis conserver la sélection après restauration.
+16. [x] Couvrir les modèles, la persistance, les stores, les composants, les filtres, les modales, les références de Session, l'accès direct et le rechargement par Vitest/Cypress, puis valider type-check, lint, `git diff --check` et build Vite.
+17. [x] Transformer « Show Deleted Players » en switch natif moderne : conserver `input[type="checkbox"]`, `v-model`, `role="switch"`, le clavier et le libellé, puis dessiner piste, curseur, états checked, hover et focus sans dépendance externe.
+
+### Manage Session et sélection des participants — étape 3
+
+1. [x] Ajouter `SessionStatus.CREATED` et formaliser les transitions autorisées `CREATED → STARTED → FINISHED`, sans retour arrière.
+2. [x] Adapter le modèle `Session` en TDD : une nouvelle Session est `CREATED`, son `startTime` reste `null` jusqu'au démarrage et `attendingPlayers` contient la liste des Players autorisés à participer aux Rotations.
+3. [x] Exposer une opération métier atomique de démarrage qui vérifie que la Session est encore `CREATED`, exige au moins quatre `attendingPlayers` toujours `AVAILABLE`, fixe définitivement leur appartenance, initialise `startTime` et passe le statut à `STARTED`.
+4. [x] Sérialiser et restaurer `attendingPlayers`, préserver les anciennes Sessions sans ce champ et appliquer leur règle de migration validée.
+5. [x] Faire créer par `createSessionForLocation()` une Session `CREATED`, vide de participants et sans Rotation, et interdire plusieurs Sessions non terminées (`CREATED` ou `STARTED`) pour une même Location.
+6. [x] Remplacer dans Home la seule notion de Session démarrée par celle de Session ouverte (`CREATED` ou `STARTED`) afin de réutiliser une préparation existante plutôt que créer plusieurs Sessions.
+7. [x] Charger une Session `CREATED` depuis sa route sans créer ni afficher de Rotation, de Courts, de Games ou de Teams ; la création du premier graphe de Rotation est différée jusqu'à « Start Session ».
+8. [x] Créer en TDD une carte de sélection de participant, indépendante de Pinia, affichant le nom centré, sélectionnable et désélectionnable au clic et au clavier, avec fond vert clair et pictogramme rond checked — coche verte asymétrique — en haut à droite lorsqu'elle est sélectionnée.
+9. [x] Créer en TDD `SessionForm`, recevant l'ordre de Session, les Players `AVAILABLE` et la sélection persistée, conservant un brouillon local d'identifiants et émettant chaque modification ainsi que la commande de démarrage sans modifier directement le store.
+10. [x] Afficher dans l'en-tête de `SessionForm` « Session #<order> » aligné à gauche et « Start Session » à côté, puis rendre cet en-tête sticky pendant le défilement vertical de la grille de Players.
+11. [x] Afficher uniquement les Players encore `AVAILABLE`, rendre la grille scrollable et réévaluer leur éligibilité au moment de la soumission afin d'empêcher qu'un changement externe de statut soit ignoré.
+12. [x] Dans `ManageSession`, rendre `SessionForm` uniquement pour une Session `CREATED`, puis afficher l'organisation de la Rotation uniquement après le passage réussi à `STARTED`.
+13. [x] Implémenter en TDD `updateAttendingPlayers` pour persister chaque sélection/désélection pendant `CREATED`, puis `startSession` pour valider la liste persistée, enregistrer la transition et créer la première Rotation en `CREATED` dont la waiting list initiale contient exclusivement les `attendingPlayers`.
+14. [x] Désactiver « Start Session » tant que moins de quatre participants sont sélectionnés et protéger la liste à deux niveaux : aucune commande d'interface après démarrage et refus métier/persistant de toute modification d'appartenance lorsque la Session n'est plus `CREATED`; les statuts individuels des mêmes instances de Player restent toutefois pilotés par les Rotations.
+15. [x] Garantir que le chargement d'une Rotation existante et la création de la première Rotation utilisent exclusivement les `attendingPlayers`, sans réinjecter automatiquement les nouveaux Players du catalogue global ; conserver ce même invariant pour le futur calcul des Rotations suivantes.
+16. [x] Étendre la règle de suppression logique d'un Player : toute présence dans `attendingPlayers` d'une Session `STARTED` interdit Delete, même si le Player n'est pas actuellement présent dans une Team ou une waiting list.
+17. [x] Adapter `LocationCard` et `HomeView` aux états `CREATED` et `STARTED`, avec « Continue Setup » pour reprendre une sélection de participants inachevée.
+18. [x] Couvrir en TDD modèle, migration, persistance, stores, cartes, `SessionForm`, affichage conditionnel, accès direct, rechargement et protections de concurrence par Vitest et Cypress ; la suite Playwright miroir sera créée ultérieurement à l'étape 6.12.
+18.1. [x] Rendre la grille de `SessionForm` responsive en réutilisant le contrat de `CardGrid`, en supprimant les contraintes de largeur implicites du formulaire, du conteneur scrollable et de la vue `ManageSession`, puis vérifier les dispositions mono/multicolonnes sans débordement horizontal.
+18.2. [x] Supprimer le défilement vertical interne de `SessionForm` : laisser sa hauteur suivre tout le contenu, confier l'unique ascenseur au document et conserver l'en-tête `h2`/« Start Session » en `position: sticky` au-dessus de la grille pendant le scroll de la page.
+19. [ ] Finaliser ensuite l'intégration de `RotationStatus`, les horaires de Rotation, la numérotation de Game et les invariants du graphe prévus initialement dans l'étape 3.
+
+#### Décisions validées pour l'implémentation de l'étape 3.1
+
+- Nombre minimal : désactiver « Start Session » et refuser la transition métier tant que moins de quatre Players ne sont pas sélectionnés.
+- Retour sur Home : traiter une Session `CREATED` comme l'unique Session ouverte de la Location et afficher une action orange « Continue Setup » qui rouvre le même `SessionForm`.
+- Brouillon avant démarrage : persister chaque modification dans `Session.attendingPlayers` pendant `CREATED` afin de restaurer la sélection après rechargement ; interdire toute modification dès le passage à `STARTED`.
+- Compatibilité historique : reconstruire `attendingPlayers` d'une ancienne Session `STARTED`/`FINISHED` depuis l'union des Players de ses Rotations, Teams et waiting lists ; en l'absence de graphe historique, reprendre les Players non supprimés comme comportement de compatibilité avec l'ancienne application.
 
 ### État d'avancement
 
@@ -181,14 +226,14 @@
 | 0.5 — Migration Vue CLI → Vite | Terminée |
 | 0.6 — Tests unitaires avec Vitest | Terminée — 19 tests sur les modèles et le store Pinia |
 | 0.7 — Tests de composants Vue avec Vitest | Terminée — rendu, routage substitué et interaction avec Pinia couverts |
-| 0.8 — Modernisation progressive de l'outillage | Alignement immédiat terminé — migration globale planifiée après HomeView |
+| 0.8 — Modernisation progressive de l'outillage | Alignement immédiat terminé — migration globale reportée à l'étape 6.11 |
 | 0.9 — Contrôle de types Vue | Terminée — `vue-tsc --noEmit` automatisé en première étape de `prebuild` |
-| 1 — Home et Locations | Fonctionnalités terminées et validées jusqu'à l'étape 1.25 — modernisation de l'outillage 1.26 à faire |
-| 2 — Manage Players | À faire |
-| 3 — Modèle et structure de Manage Session | À faire — 3.11 partiellement anticipée |
+| 1 — Home et Locations | Terminée — fonctionnalités validées jusqu'à l'étape 1.25 |
+| 2 — Manage Players | Terminée — 17 sous-étapes réalisées par TDD et chaîne de validation complète réussie |
+| 3 — Modèle, participants et structure de Manage Session | En cours — sélection persistante des participants terminée en 3.18 ; prochaine tranche en 3.19 |
 | 4 — Préparation et lancement d’une Rotation | À faire — 4.4 partiellement anticipée |
 | 5 — Scoring et fin de Session | À faire |
-| 6 — Calcul de la rotation suivante | À faire |
+| 6 — Calcul de la rotation suivante | À faire — modernisation globale de l'outillage en 6.11, puis duplication complète Cypress + Playwright en 6.12 |
 | 7 — SQLite | À faire |
 
 ### Décisions techniques
@@ -332,6 +377,27 @@ Les décisions antérieures sont horodatées à la date de leur consignation dan
 - **2026-08-15 16:35:29** — Insérer l'étape 1.25 de sélection post-création avant la modernisation de l'outillage, décalée en 1.26. Faire retourner l'objet construit par `createLocation()` et utiliser directement son identifiant dans `HomeView`, plutôt que de rechercher la carte créée dans le DOM ou de supposer sa position dans le tableau. Justification : l'action Pinia est la source de vérité de l'identité générée ; une seule affectation de la `ref selectedLocationId` remplace naturellement toute sélection antérieure grâce aux props `isSelected` dérivées.
 - **2026-08-15 16:36:49** — Faire retourner la nouvelle `Location` par `useLocationStore.createLocation()` après persistance et rechargement, puis affecter son `id` à `selectedLocationId` dans la seule branche de création de `HomeView`. Justification : la sélection ne change qu'après le succès du store ; l'édition conserve son comportement, et Vue recalcule les props `isSelected` de toutes les cartes à partir d'une source unique. Les tests de composant vérifient le transfert complet de l'état selected et un scénario Cypress reproduit le parcours réel.
 - **2026-08-15 16:38:01** — Considérer l'étape 1.25 terminée. Après création, l'ancienne carte reçoit `isSelected = false` et la nouvelle reçoit `isSelected = true`, son rail Edit/Delete et son action de Session, sans recherche DOM ni dépendance à l'ordre des Locations. Validation finale : contrôle TypeScript, lint, 98 tests Vitest répartis dans 15 fichiers, 12 parcours Cypress, `git diff --check` et build Vite de production réussissent.
+- **2026-08-15 17:10:30** — Déplacer intégralement l'ancienne étape 1.26 de modernisation globale de l'outillage en 6.11, dernière sous-étape de l'étape 6. Cette décision remplace le calendrier « après HomeView » des décisions antérieures sans modifier le périmètre technique prévu : inventaire et migration des outils, configuration partagée du formatage, scripts de vérification et reformatage mécanique séparé. Justification : différer cette évolution transverse jusqu'à la fin du calcul de la rotation suivante et reprendre immédiatement le développement fonctionnel à l'étape 2.1.
+- **2026-08-15 23:59:22** — Valider le plan détaillé de l'étape 2 et clarifier le statut des Players. Un Player est `AVAILABLE` avant le démarrage et après la fin d'une Rotation ; au démarrage, les Players affectés aux Teams deviennent `PLAYING` et ceux de la waiting list deviennent `WAITING`. Remplacer `ACTIVE` par `PLAYING`; `DELETED` reste un statut logique restauré vers `AVAILABLE`. Introduire `RotationStatus { CREATED, IN_PROGRESS, SCORING, FINISHED }`, avec `CREATED` comme valeur de compatibilité des anciennes données. Interdire la suppression logique si le Player est référencé par une Rotation appartenant à une Session `STARTED`, préserver physiquement tous les Players pour l'historique et garder l'unicité des noms tous statuts confondus. Justification : séparer la disponibilité calculée au démarrage d'une Rotation du cycle de suppression, empêcher une incohérence historique et rendre les futures transitions de Rotation explicites.
+- **2026-08-15 23:59:22** — Pour `ManagePlayers`, adopter `usePlayerStore` comme propriétaire du catalogue persistant et réserver `useSessionStore` à l'orchestration d'une Session. Réutiliser `CardGrid`, `CreateEntityCard` et `BaseModal`, créer `PlayerForm` limité au nom et `PlayerCard`, filtrer par sous-chaîne contiguë insensible à la casse et aux accents, masquer les Players `DELETED` par défaut et exposer leur restauration uniquement sur une carte sélectionnée. Justification : reproduire l'architecture éprouvée de `HomeView`, permettre l'accès direct sans création implicite de Session et conserver les états de recherche/sélection dans la vue.
+- **2026-08-16 00:01:06** — Remplacer `PlayerStatus.ACTIVE` par `PLAYING` et convertir automatiquement l'ancienne valeur sérialisée `ACTIVE` lors de `PlayerBuilder.fromJson()`. Ajouter `RotationStatus` au modèle et au JSON de `Rotation`, avec `CREATED` comme valeur par défaut en construction et lors de la restauration d'un ancien JSON sans statut. Justification : préserver la compatibilité du `localStorage`, distinguer clairement un Player effectivement en jeu d'un Player seulement disponible et préparer les transitions de Rotation sans les coupler encore à l'interface. Validation : 11 tests de modèles ciblés, contrôle TypeScript et lint réussissent.
+- **2026-08-16 00:04:46** — Introduire `usePlayerStore` comme catalogue complet et y centraliser création, édition du nom, suppression logique et restauration. La suppression inspecte les Rotations des Sessions `STARTED`, leurs waiting lists et les Teams référencées par leurs Games ; une référence bloque Delete, tandis qu'un historique `FINISHED` reste intact. `useSessionStore` exclut les Players `DELETED`, conserve `AVAILABLE` pendant `CREATED` et refuse les déplacements dans les autres statuts. `storageService.updatePlayers()` fusionne les mises à jour sans supprimer les enregistrements absents du sous-ensemble courant. Justification : préserver le catalogue et l'historique tout en séparant administration et orchestration de Session. Validation : 27 tests de stores ciblés, contrôle TypeScript et lint réussissent.
+- **2026-08-16 00:12:53** — Remplacer la table et le formulaire intégré de `ManagePlayers` par `CardGrid`, `CreateEntityCard`, `PlayerCard`, `PlayerForm` et deux `BaseModal` contrôlées. La vue détient sélection, recherche accent-insensible, toggle des supprimés et erreurs ; le store détient les mutations persistantes. Les commandes Edit/Delete ou Restore sont rendues conditionnellement selon sélection et statut. `/manage-players` ne déclenche plus `ensureSessionGuard`. Les mutations de composition `setCourts`, `addPlayer`, `removePlayer` et `movePlayer` sont refusées hors `RotationStatus.CREATED`; avant démarrage, le statut reste `AVAILABLE`. Justification : reprendre l'architecture éprouvée de Home, maintenir les composants sans dépendance Pinia et appliquer la règle de verrouillage au niveau du store. Validation intermédiaire : 134 tests Vitest, contrôle TypeScript, lint, `git diff --check` et 15 parcours Cypress réussissent.
+- **2026-08-16 00:14:34** — Clôturer l'étape 2 après validation de l'ensemble de `ManagePlayers`, du catalogue persistant, de la compatibilité des statuts historiques, du verrouillage des compositions de Rotation et des parcours directs/rechargés. Les transitions d'exécution de `RotationStatus` restent réservées aux étapes 3 à 5. Justification : livrer un incrément administratif cohérent et testé sans anticiper l'interface de déroulement d'une Rotation. Validation finale : contrôle TypeScript, lint, 138 tests Vitest répartis dans 18 fichiers, 15 parcours Cypress, `git diff --check` et build Vite de production (80 modules) réussissent.
+- **2026-08-16 00:48:33** — Ajouter l'étape 6.12 de migration partielle de Cypress vers Playwright immédiatement après la modernisation globale de l'outillage en 6.11. Cette décision remplace la qualification de 6.11 comme dernière sous-étape de l'étape 6, sans avancer son calendrier. Réévaluer alors la suite Cypress réellement présente, migrer d'abord les smoke tests de routes et rechargements, puis les parcours métier Manage Players, tout en conservant provisoirement sous Cypress les contrôles géométriques détaillés de Home. Faire coexister les deux runners jusqu'à parité et supprimer chaque scénario Cypress uniquement après validation de son équivalent Playwright. Justification : apprendre et introduire Playwright par incréments vérifiables, limiter le risque d'une réécriture globale et conserver une couverture E2E continue pendant la transition.
+- **2026-08-16 00:52:27** — Remplacer la migration partielle prévue en 6.12 par une duplication complète et durable de la suite E2E : chaque test Cypress présent au démarrage de l'étape, puis chaque nouveau test Cypress ajouté pendant la période de comparaison, doit posséder un test Playwright miroir couvrant les mêmes préconditions, actions et résultats attendus. Ne supprimer aucun test Cypress au titre de cette étape. Le périmètre actuel de référence comprend 15 scénarios dans `cypress/e2e/routes.cy.js`, dont quatre cas générés par le test paramétré des routes. Justification : permettre une comparaison à couverture fonctionnelle égale des deux runners — lisibilité, ergonomie, durée, stabilité et qualité des diagnostics — sans confondre cette expérimentation avec un remplacement anticipé de Cypress. Cette décision annule les limitations de périmètre et les suppressions progressives consignées le 2026-08-16 à 00:48:33.
+- **2026-08-16 11:52:45** — Introduire une phase de préparation de Session en ajoutant `SessionStatus.CREATED` et `Session.attendingPlayers`. La création depuis `LocationCard` produit désormais une Session `CREATED`; `ManageSession` affiche alors `SessionForm` et masque entièrement l'organisation de Rotation. Le clic sur « Start Session » fixe les Players sélectionnés, initialise l'heure réelle de début, passe la Session à `STARTED` et crée seulement alors la première Rotation à partir de ces participants. L'appartenance à `attendingPlayers` devient immuable après démarrage, tandis que le statut de chaque Player peut continuer à évoluer selon les Rotations. Justification : distinguer la création technique de la Session de son démarrage métier, figer le périmètre des participants pour tout son historique et empêcher l'arrivée automatique de nouveaux Players dans les Rotations suivantes.
+- **2026-08-16 12:03:52** — Valider les règles de préparation : quatre participants minimum sont requis pour démarrer ; une Session `CREATED` est reprise depuis Home avec « Continue Setup » ; chaque sélection est persistée immédiatement dans `attendingPlayers` pendant `CREATED` afin de survivre à un rechargement ; la liste devient immuable en `STARTED`. Pour les anciennes Sessions sans liste, reconstruire les participants depuis le graphe historique, puis utiliser les Players non supprimés uniquement si aucun graphe n'existe. Justification : empêcher une Session inutilisable, préserver le travail de sélection avant démarrage, garantir un unique périmètre de participants et assurer la continuité des données existantes.
+- **2026-08-16 12:06:14** — Implémenter en TDD le cœur du cycle de vie de `Session` : statut initial `CREATED`, `startTime` nullable, sélection persistable de Players uniques et `AVAILABLE`, minimum de quatre participants contrôlé au démarrage, transition unique vers `STARTED` puis vers `FINISHED`, et refus de modifier l'appartenance après démarrage. `attendingPlayers` est exposé par copie afin que sa composition ne puisse changer qu'au travers de l'agrégat. Validation : 8 tests ciblés du modèle et contrôle TypeScript réussissent.
+- **2026-08-16 12:20:15** — Implémenter la préparation complète de Session : migration contextuelle des anciennes listes, unicité d'une Session ouverte, chargement sans graphe en `CREATED`, persistance de chaque sélection, validation concurrente des statuts, création différée de la première Rotation, composants `SessionPlayerCard`/`SessionForm`, affichage conditionnel dans `ManageSession`, reprise « Continue Setup » depuis Home et protection Delete fondée directement sur `attendingPlayers`. Le store recharge désormais une Rotation à partir du périmètre figé et refuse l'ajout d'un Player extérieur. Validation intermédiaire : contrôle TypeScript, lint et 160 tests Vitest répartis dans 23 fichiers réussissent.
+- **2026-08-16 12:25:08** — Clôturer la tranche 3.1 à 3.18 consacrée aux participants de Session. Retirer également l'ancien formulaire « Add Player » après démarrage : la composition de `attendingPlayers` ne peut désormais être modifiée que dans `SessionForm` pendant `CREATED`, puis devient immuable en `STARTED` dans l'interface comme dans le domaine et le store. Le scénario Cypress ajouté porte le référentiel à 16 cas et devra disposer d'un miroir Playwright à l'étape 6.12. Validation finale : contrôle TypeScript, lint, 161 tests Vitest répartis dans 23 fichiers, 16 scénarios Cypress, `git diff --check` et build Vite de production (86 modules) réussissent.
+- **2026-08-16 15:00:10** — Ajouter l'ajustement 3.18.1 pour rendre la grille de sélection de `SessionForm` responsive selon le même contrat que Home et Manage Players. Conserver `CardGrid` comme propriétaire unique des colonnes et agir sur les contraintes de largeur de `SessionForm` et de son conteneur scrollable, puis mesurer dans le navigateur une disposition multicolonne sur écran large et monocolonne sans débordement sur écran étroit. Justification : éviter de dupliquer les règles de grille tout en garantissant que les conteneurs flexibles n'imposent pas leur largeur minimale intrinsèque aux cartes.
+- **2026-08-16 15:01:55** — Étendre l'ajustement responsive au conteneur racine de `ManageSession`. Le test Cypress rouge montre qu'à 1280 px la vue se réduit à la largeur intrinsèque d'une carte, alors que Home et Manage Players occupent explicitement l'espace du conteneur flex. Aligner `ManageSession` avec `flex: 1`, `width: 100%` et `box-sizing: border-box`, tout en laissant `CardGrid` décider seul du nombre de colonnes. Justification : corriger la contrainte à son origine et éviter une largeur calculée depuis le viewport à l'intérieur du composant enfant.
+- **2026-08-16 15:03:16** — Clôturer l'ajustement responsive 3.18.1. `SessionForm` et son conteneur scrollable acceptent désormais la contraction avec `min-width: 0`, occupent toute la largeur disponible et masquent tout débordement horizontal ; `ManageSession` adopte le même contrat de largeur flex que Home et Manage Players. Cypress mesure deux cartes de 350 px sur la même ligne à 1280 px, puis une colonne entièrement contenue dans la grille à 375 px. Validation finale : contrôle TypeScript, lint, 162 tests Vitest répartis dans 23 fichiers, 16 scénarios Cypress et build Vite de production (86 modules) réussissent.
+- **2026-08-16 15:31:59** — Rouvrir ponctuellement l'étape 2 en 2.17 pour transformer la checkbox « Show Deleted Players » en switch natif stylé. Écarter `vue-js-toggle-button`, limité à Vue 2, et ne pas introduire Naive UI pour un contrôle isolé. Conserver l'`input` natif, `v-model`, `role="switch"` et les tests fonctionnels existants ; utiliser `appearance: none` et un pseudo-élément pour la piste et le curseur. Justification : préserver l'accessibilité, limiter le changement au rendu et n'ajouter aucune dépendance à l'application.
+- **2026-08-16 15:34:11** — Clôturer l'ajustement 2.17. « Show Deleted Players » est désormais un switch natif de 44 × 24 px : piste grise désactivée, piste verte activée, curseur blanc animé, survol et focus clavier visibles. Le contrôle conserve son identifiant, son label, `type="checkbox"`, `role="switch"` et son `v-model`, sans nouvelle dépendance. Cypress vérifie les couleurs calculées, la forme arrondie, le déplacement du curseur et le filtrage réel. Validation finale : contrôle TypeScript, lint, 163 tests Vitest répartis dans 23 fichiers, 16 scénarios Cypress et build Vite de production (86 modules) réussissent.
+- **2026-08-16 15:42:12** — Ajouter l'ajustement 3.18.2 pour supprimer le double ascenseur de la phase de sélection. Retirer la hauteur maximale et les propriétés `overflow` qui font de `SessionForm` et de son conteneur de grille un contexte de défilement autonome ; laisser le document défiler et conserver l'en-tête sticky à `top: 0`. Justification : `position: sticky` se rattache au plus proche ancêtre scrollable ; supprimer ce dernier permet au titre et au bouton de suivre l'unique scroll de la page.
+- **2026-08-16 15:45:42** — Clôturer l'ajustement 3.18.2. `SessionForm` ne fixe plus de `max-height` et ni le formulaire ni son conteneur de grille ne définissent d'`overflow`; leur hauteur suit donc les cartes et seul le document porte l'ascenseur vertical. L'en-tête sticky conserve le titre et « Start Session » à `top: 0`. Cypress utilise 20 Players pour provoquer un débordement réel, vérifie l'égalité `scrollHeight/clientHeight` du conteneur, le dépassement du document et la position visible de l'en-tête après scroll jusqu'en bas. Validation finale : contrôle TypeScript, lint, 163 tests Vitest répartis dans 23 fichiers, 16 scénarios Cypress et build Vite de production (86 modules) réussissent.
 
 ## Modifications identifiées
 
@@ -389,23 +455,17 @@ La route devient ainsi partageable et rechargeable sans dépendre d’une sélec
 ### Vue Manage Players
 
 - Corriger le chargement des joueurs lors d’un accès direct à la route.
-- Remplacer la table actuelle par une grille de cartes.
-- Afficher en première position une carte spéciale :
-  - icône + ;
-  - texte « Créer Player ».
-- Afficher ensuite une carte par joueur contenant :
-  - son nom ;
-  - une commande Edit ;
-  - une commande Delete.
-- Créer un composant réutilisable PlayerCard.
-- Créer une fenêtre modale commune à la création et à l’édition.
-- Fermer la modale par :
-  - bouton Cancel ;
-  - bouton de fermeture ;
-  - éventuellement touche Échap et clic sur l’arrière-plan.
-- Ajouter une confirmation avant suppression.
-- Faire en sorte que Delete supprime réellement le joueur, contrairement au comportement actuel.
-- Définir le comportement si le joueur est référencé dans une session ou une rotation historique.
+- Charger tous les Players dans un store dédié, indépendamment de l'initialisation d'une Session.
+- Remplacer la table actuelle par `CardGrid`, avec `CreateEntityCard` « Create Player » en première position puis une `PlayerCard` par Player visible.
+- Sélectionner une seule PlayerCard à la fois et afficher ses commandes contextuelles sans les laisser dans l'ordre de tabulation hors sélection.
+- Créer `PlayerForm`, limité au nom, et réutiliser une fenêtre `BaseModal` commune à la création et à l'édition.
+- Après création, sélectionner le nouveau Player ; pendant l'édition, préserver identifiant, statut et sélection.
+- Rechercher dynamiquement par sous-chaîne contiguë insensible à la casse et aux accents.
+- Masquer par défaut les Players `DELETED` et ajouter le toggle « Show Deleted Players ».
+- Demander confirmation avant de passer un Player à `DELETED`; refuser si ce Player est référencé par une Session `STARTED`.
+- Ne jamais supprimer physiquement un Player afin de préserver l'historique des Sessions terminées.
+- Afficher les Players supprimés sur fond gris, sans Edit/Delete, avec une action Restore accessible et centrée en haut lorsqu'ils sont sélectionnés.
+- Restaurer un Player vers `AVAILABLE` en conservant sa carte sélectionnée.
 
 ### Vue Manage Session
 
@@ -560,37 +620,55 @@ La migration Pinia est architecturale : je te présenterai son fonctionnement et
 20. [x] Transformer les actions Start/Manage en pictogrammes Play/Fast Forward de 52 px, positionnés à 4 px du coin supérieur droit, avec les libellés Start/Continue et sans déplacer les éléments centrés.
 21. [x] Empêcher les clics de Create Location et des modales de remonter jusqu'à la désélection de `HomeView`, tout en conservant la désélection extérieure.
 22. [x] Après une création réussie, sélectionner la nouvelle Location et désélectionner automatiquement celle qui l'était auparavant.
-23. [ ] Après validation de `HomeView`, inventorier et migrer tout l'outillage du projet vers ses versions stables courantes respectives, par lots vérifiés.
-    - [ ] Ajouter une configuration partagée d'indentation et de formatage, ainsi qu'une commande de vérification automatisée.
-    - [ ] Appliquer ensuite cette configuration à tout le code dans un lot mécanique séparé et valider la chaîne complète.
-
 Chaque point fera l’objet d’une modification limitée.
 
 ### Étape 2 — Manage Players
 
-1. [ ] Garantir le chargement des joueurs.
-2. [ ] Extraire `PlayerCard`.
-3. [ ] Construire la grille et la carte « Créer Player ».
-4. [ ] Réutiliser le composant modal créé à l’étape 1.
-5. [ ] Déplacer la création dans la modale.
-6. [ ] Déplacer l’édition dans la même modale.
-7. [ ] Définir la politique de suppression des joueurs référencés dans l’historique.
-8. [ ] Implémenter la suppression réelle.
-9. [ ] Ajouter les validations et tests.
+1. [x] Remplacer `PlayerStatus.ACTIVE` par `PLAYING` et formaliser `AVAILABLE` avant/après Rotation, puis `PLAYING`/`WAITING` pendant une Rotation démarrée.
+2. [x] Introduire et sérialiser `RotationStatus`, avec restauration des anciennes Rotations en `CREATED`.
+3. [x] Créer `usePlayerStore`, charger tous les Players et découpler `/manage-players` de l'initialisation d'une Session.
+4. [x] Implémenter la création persistante et l'unicité globale des noms.
+5. [x] Implémenter l'édition persistante du nom en conservant identifiant et statut.
+6. [x] Implémenter Delete logique, Restore vers `AVAILABLE` et le refus de Delete si une Session `STARTED` référence le Player.
+7. [x] Exclure les Players supprimés des nouvelles Rotations et conserver `AVAILABLE` pendant leur préparation.
+8. [x] Créer `PlayerForm`.
+9. [x] Créer `PlayerCard`, son rendu supprimé et sa sélection accessible.
+10. [x] Ajouter les pictogrammes Edit/Delete et Restore selon le statut et la sélection.
+11. [x] Construire la grille avec Create Player en première position et la sélection locale.
+12. [x] Ajouter la recherche dynamique et le toggle « Show Deleted Players ».
+13. [x] Intégrer la création en modale et sélectionner le Player créé.
+14. [x] Intégrer l'édition dans la même modale.
+15. [x] Intégrer la confirmation Delete et l'action Restore avec les règles de sélection validées.
+16. [x] Valider modèles, stores, composants, E2E, accès direct, type-check, lint et build.
+17. [x] Transformer « Show Deleted Players » en switch natif accessible et stylé, sans dépendance externe ni changement du comportement de filtrage.
 
-### Étape 3 — Modèle et structure de Manage Session
+### Étape 3 — Modèle, participants et structure de Manage Session
 
-1. [ ] Ajouter `RotationStatus`.
-2. [ ] Compléter `Rotation` avec statut et horaires.
-3. [ ] Compléter `Game` avec son numéro dans la Session.
-4. [ ] Ajouter les opérations métier de numérotation des Sessions, Rotations et Games.
-5. [ ] Définir les invariants et transitions autorisées.
-6. [ ] Charger et valider Location et Session depuis la route.
-7. [ ] Traiter une Session inexistante, incohérente ou terminée.
-8. [ ] Afficher `Location.name # Session.order`.
-9. [ ] Extraire `RotationCard`, `CourtCard`, `GameCard`, `TeamCard` et `OffCourtPlayers`.
-10. [ ] Construire un Game par Court.
-11. [ ] Garantir la persistance et la restauration du graphe complet.
+1. [x] Ajouter `SessionStatus.CREATED` et les transitions `CREATED → STARTED → FINISHED`.
+2. [x] Ajouter `Session.attendingPlayers`, rendre `startTime` nullable avant démarrage et couvrir sérialisation ainsi que compatibilité historique.
+3. [x] Créer les Sessions en `CREATED`, sans Rotation, et garantir une seule Session `CREATED` ou `STARTED` par Location.
+4. [x] Adapter Home pour créer ou reprendre la Session ouverte appropriée.
+5. [x] Charger une Session `CREATED` depuis la route sans initialiser l'organisation d'une Rotation.
+6. [x] Créer la carte de sélection accessible des participants.
+7. [x] Créer `SessionForm` avec titre, bouton sticky, grille scrollable et sélection persistée pendant `CREATED`, limitée aux Players `AVAILABLE`.
+8. [x] Exiger au moins quatre participants puis implémenter atomiquement « Start Session » : figer `attendingPlayers`, dater le démarrage, passer à `STARTED` et créer la première Rotation à partir de ces seuls Players.
+9. [x] Afficher `SessionForm` en `CREATED` et l'organisation de Rotation uniquement en `STARTED`.
+10. [x] Interdire toute modification de l'appartenance à `attendingPlayers` après démarrage et limiter les graphes courants à cette liste.
+11. [x] Interdire Delete pour tout Player participant à une Session `STARTED`.
+11.1. [x] Rendre la grille de sélection de `SessionForm` responsive en réutilisant `CardGrid` et vérifier l'absence de débordement horizontal sur écran étroit.
+11.2. [x] Supprimer le scroll interne de `SessionForm`, conserver uniquement l'ascenseur de la page et maintenir son en-tête visible au-dessus de la grille.
+12. [ ] Finaliser l'intégration de `RotationStatus` anticipée à l'étape 2 et ses transitions autorisées.
+13. [ ] Compléter `Rotation` avec horaires et verrouillage de toute mutation après `FINISHED`.
+14. [ ] Compléter `Game` avec son numéro dans la Session.
+15. [ ] Ajouter les opérations métier de numérotation des Sessions, Rotations et Games.
+16. [ ] Définir les invariants et transitions autorisées.
+17. [ ] Charger et valider Location et Session depuis la route.
+18. [ ] Traiter une Session inexistante, incohérente ou terminée.
+19. [ ] Afficher `Location.name # Session.order` autour de la phase de préparation et de la phase démarrée.
+20. [ ] Extraire `RotationCard`, `CourtCard`, `GameCard`, `TeamCard` et `OffCourtPlayers`.
+21. [ ] Construire un Game par Court.
+22. [ ] Garantir la persistance et la restauration du graphe complet.
+23. [ ] Valider l'ensemble de l'étape par TDD, Cypress et la chaîne de build ; les miroirs Playwright restent planifiés en 6.12.
 
 ### Étape 4 — Préparation et lancement d’une Rotation
 
@@ -601,21 +679,21 @@ Chaque point fera l’objet d’une modification limitée.
 5. [ ] Gérer les échanges Team ↔ Team et Team ↔ OffCourtPlayers.
 6. [ ] Créer le minuteur paramétrable.
 7. [ ] Implémenter « Start Rotation ».
-8. [ ] Passer à `IN_PROGRESS` et figer toutes les affectations.
+8. [ ] Passer à `IN_PROGRESS`, affecter `PLAYING` aux Players des Teams et `WAITING` aux Players hors Court, puis figer toutes les affectations jusqu'à la fin de la Rotation.
 9. [ ] Afficher Available Players ou Waiting Players selon le statut.
 10. [ ] Restaurer correctement une rotation après navigation ou rechargement.
 
 ### Étape 5 — Scoring et fin de Session
 
-1. [ ] Passer automatiquement à `SCORING` lorsque le minuteur atteint zéro.
+1. [ ] Passer à `SCORING` lorsque le minuteur atteint zéro ou lorsque l'utilisateur clique sur « Matchs Results ».
 2. [ ] Afficher et activer les scores uniquement en `SCORING`.
 3. [ ] Valider les entiers de 0 à 100.
 4. [ ] Exiger tous les scores.
 5. [ ] Déterminer gagnant et perdant.
 6. [ ] Gérer manuellement les égalités avec « WINNER ? ».
 7. [ ] Enregistrer équipes, scores, joueurs en attente et horaire de fin.
-8. [ ] Implémenter « End Session ».
-9. [ ] Terminer Rotation et Session.
+8. [ ] Garder « Next Rotation » et « End Session » désactivés tant que tous les résultats ne sont pas enregistrés, puis implémenter leurs actions.
+9. [ ] Passer la Rotation à `FINISHED`, remettre tous ses Players à `AVAILABLE` et terminer également la Session depuis « End Session ».
 10. [ ] Proposer « New Session » depuis une Session terminée.
 
 ### Étape 6 — Calcul de la rotation suivante
@@ -630,6 +708,29 @@ Chaque point fera l’objet d’une modification limitée.
 8. [ ] Créer la Rotation suivante en statut `CREATED`.
 9. [ ] Afficher et autoriser les ajustements manuels.
 10. [ ] Tester plusieurs nombres de Courts et de joueurs.
+11. [ ] Inventorier puis migrer tout l'outillage du projet vers ses versions stables courantes respectives — notamment ESLint et sa configuration plate, plugins ESLint, TypeScript, Vite, Vitest, Vue Test Utils, Cypress et utilitaires de build/test — par lots compatibles et vérifiables.
+    - [ ] Centraliser l'indentation et les règles de base dans un fichier `.editorconfig` versionné et reconnu par IntelliJ IDEA ainsi que par les autres éditeurs compatibles.
+    - [ ] Installer localement un formateur déterministe compatible avec les SFC Vue, verrouiller sa version et versionner sa configuration commune.
+    - [ ] Aligner ESLint et le formateur afin que les règles de qualité Vue/TypeScript et les règles de présentation ne se contredisent pas.
+    - [ ] Ajouter des scripts npm `format` et `format:check`, puis intégrer la vérification du formatage à la chaîne automatisée sans mutation des fichiers.
+    - [ ] Documenter l'activation du formateur partagé dans IntelliJ IDEA et les commandes indépendantes de l'IDE.
+    - [ ] Une fois la configuration centralisée validée, appliquer le formatage à tout le code du projet dans un lot mécanique distinct, puis vérifier le type-check, le lint, tous les tests et le build.
+12. [ ] Introduire Playwright et créer un test Playwright miroir pour chaque test Cypress après stabilisation de l'outillage modernisé, sans retirer la suite Cypress.
+    - [ ] Réinventorier tous les fichiers et scénarios Cypress à cette date, compter les cas réellement générés par les tests paramétrés et établir une matrice de correspondance Cypress ↔ Playwright exhaustive ; le référentiel actuel contient 16 scénarios dans `cypress/e2e/routes.cy.js`.
+    - [ ] Installer `@playwright/test` et les navigateurs strictement nécessaires, puis créer une configuration utilisant le même serveur Vite de test, la même `baseURL`, un viewport et des délais explicitement alignés autant que possible avec Cypress, ainsi que des traces/captures conservées en cas d'échec.
+    - [ ] Ajouter des fixtures Playwright pour initialiser et nettoyer `localStorage`, détecter les erreurs JavaScript de page et collecter les réponses HTTP en erreur avec le même niveau de protection que la suite Cypress.
+    - [ ] Créer les équivalents Playwright des quatre cas paramétrés d'accès direct et de rechargement de route, puis du scénario de redirection d'une route identifiée invalide.
+    - [ ] Créer les équivalents Playwright de tous les parcours Home, y compris désélection extérieure, largeur des cartes, géométrie des commandes, suppression logique, verrouillage du nombre de Courts, conservation de la sélection dans les modales et sélection après création.
+    - [ ] Créer les équivalents Playwright de tous les parcours Manage Players : chargement et filtre sans Session implicite, cycle Create/Edit/Delete/Restore et refus de Delete pour un Player lié à une Session `STARTED`.
+    - [ ] Créer l'équivalent Playwright du parcours Manage Session couvrant la sélection persistante d'au moins quatre participants `AVAILABLE`, le rechargement du brouillon et le démarrage différé de la Session.
+    - [ ] Conserver pour chaque paire les mêmes données initiales, étapes utilisateur et résultats observables ; autoriser des locators idiomatiques propres à chaque runner lorsque leur intention fonctionnelle reste équivalente.
+    - [ ] Maintenir une correspondance nominative ou documentée entre chaque test Cypress et son miroir Playwright, et ajouter le miroir Playwright de tout nouveau test Cypress créé pendant la période de comparaison.
+    - [ ] Ne supprimer, désactiver ni réduire aucun test Cypress dans cette étape ; les deux suites constituent volontairement deux implémentations parallèles du même contrat E2E.
+    - [ ] Exposer des scripts npm distincts `test:e2e:cypress` et `test:e2e:playwright`, conserver un agrégat `test:e2e` exécutant les deux suites et les intégrer toutes deux à la chaîne de validation.
+    - [ ] Comparer les deux runners dans des conditions aussi proches que possible — famille de navigateur, viewport, serveur, données et mode headless — puis relever séparément durée, éventuels échecs intermittents, qualité des diagnostics et facilité de maintenance sans imposer prématurément un vainqueur.
+    - [ ] Exécuter Playwright au minimum sur Chromium pour la comparaison initiale ; décider explicitement après cette comparaison si Firefox et WebKit doivent fournir une couverture supplémentaire sans équivalent Cypress direct.
+    - [ ] Documenter les commandes d'exécution et modes UI, l'inspection des traces, la stratégie de locators et la méthode de lecture du rapport comparatif Cypress/Playwright.
+    - [ ] Valider type-check, lint, Vitest, l'intégralité de Cypress, le même nombre de scénarios Playwright, `git diff --check` et build Vite avant de clôturer l'étape ; tout écart de cardinalité doit être justifié par une différence de paramétrage explicite.
 
 ### Étape 7 — SQLite
 

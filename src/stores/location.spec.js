@@ -191,7 +191,13 @@ describe('useLocationStore', () => {
             .withName('Central Park')
             .withNbCourts(4)
             .build()
-        const startedSession = new Session(location.id, 1)
+        const startedSession = new Session(
+            location.id,
+            1,
+            new Date(),
+            null,
+            SessionStatus.STARTED
+        )
         const laterFinishedSession = new Session(
             location.id,
             2,
@@ -230,7 +236,13 @@ describe('useLocationStore', () => {
             .build()
 
         storageService.saveLocations([location])
-        storageService.saveSessions([new Session(location.id, 1)])
+        storageService.saveSessions([new Session(
+            location.id,
+            1,
+            new Date(),
+            null,
+            SessionStatus.STARTED
+        )])
 
         const store = useLocationStore()
         store.loadLocations()

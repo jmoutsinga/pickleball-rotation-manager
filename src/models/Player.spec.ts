@@ -37,4 +37,14 @@ describe('Player', () => {
       status: PlayerStatus.WAITING
     })
   })
+
+  it('restores the legacy ACTIVE status as PLAYING', () => {
+    const restoredPlayer = PlayerBuilder.fromJson({
+      id: 'player-1',
+      name: 'alice',
+      status: 'ACTIVE'
+    })
+
+    expect(restoredPlayer.status).toBe(PlayerStatus.PLAYING)
+  })
 })

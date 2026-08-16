@@ -9,11 +9,28 @@ import {
   PlayerBuilder,
   PlayerStatus,
   Rotation,
+  RotationStatus,
   Session,
   SessionStatus,
   Team
 } from '@/models'
+import storageService from '@/services/storage'
 import { useSessionStore } from './session'
+
+async function startPreparedSession(store, count = 4) {
+  await store.ensureSession()
+  const players = Array.from({ length: count }, (_, index) =>
+    new PlayerBuilder()
+      .withId(`player-${index + 1}`)
+      .withName(`player-${index + 1}`)
+      .build()
+  )
+  storageService.savePlayers(players)
+  store.players = players
+  store.updateAttendingPlayers(players.map(player => player.id))
+  store.startSession(new Date('2026-08-16T10:00:00.000Z'))
+  return players
+}
 
 describe('useSessionStore', () => {
   let pinia
@@ -28,24 +45,29 @@ describe('useSessionStore', () => {
     disposePinia(pinia)
   })
 
-  it('initializes and persists a minimal session graph', async () => {
+  it('initializes and persists a minimal session preparation', async () => {
     const store = useSessionStore()
 
     await store.ensureSession()
 
     expect(store.location.name).toBe('default')
     expect(store.session.locationId).toBe(store.location.id)
-    expect(store.courts).toHaveLength(1)
-    expect(store.teams).toHaveLength(2)
-    expect(store.rotation.games).toHaveLength(1)
-    expect(store.getCourts[0].teams.A.id).toBe(store.teams[0].id)
-    expect(store.getCourts[0].teams.B.id).toBe(store.teams[1].id)
+    expect(store.session.status).toBe(SessionStatus.CREATED)
+    expect(store.courts).toEqual([])
+    expect(store.teams).toEqual([])
+    expect(store.rotation).toBeNull()
     expect(JSON.parse(localStorage.getItem('pickleball_sessions')))
       .toHaveLength(1)
   })
 
   it('loads sessions and finds the started sessions for one location', () => {
-    const startedSession = new Session('location-1', 1)
+    const startedSession = new Session(
+      'location-1',
+      1,
+      new Date(),
+      null,
+      SessionStatus.STARTED
+    )
     const finishedSession = new Session(
       'location-1',
       2,
@@ -53,7 +75,13 @@ describe('useSessionStore', () => {
       new Date(),
       SessionStatus.FINISHED
     )
-    const otherLocationSession = new Session('location-2', 1)
+    const otherLocationSession = new Session(
+      'location-2',
+      1,
+      new Date(),
+      null,
+      SessionStatus.STARTED
+    )
     const finishedOnlySession = new Session(
       'location-3',
       1,
@@ -83,14 +111,14 @@ describe('useSessionStore', () => {
     expect(store.canEditCourtCountByLocationId('unknown-location')).toBe(true)
   })
 
-  it('creates and persists the first started session for a location', () => {
+  it('creates and persists the first created session for a location', () => {
     const store = useSessionStore()
 
     const createdSession = store.createSessionForLocation('location-1')
 
     expect(createdSession.locationId).toBe('location-1')
     expect(createdSession.order).toBe(1)
-    expect(createdSession.status).toBe(SessionStatus.STARTED)
+    expect(createdSession.status).toBe(SessionStatus.CREATED)
     expect(store.sessions.map(session => session.id))
       .toEqual([createdSession.id])
     expect(JSON.parse(localStorage.getItem('pickleball_sessions')))
@@ -195,8 +223,20 @@ describe('useSessionStore', () => {
       .withName('Central Club')
       .withNbCourts(2)
       .build()
-    const defaultSession = new Session(defaultLocation.id, 1)
-    const selectedSession = new Session(selectedLocation.id, 1)
+    const defaultSession = new Session(
+      defaultLocation.id,
+      1,
+      new Date(),
+      null,
+      SessionStatus.STARTED
+    )
+    const selectedSession = new Session(
+      selectedLocation.id,
+      1,
+      new Date(),
+      null,
+      SessionStatus.STARTED
+    )
     const defaultCourt = new Court(defaultLocation.id, 1)
     const defaultTeams = [new Team(), new Team()]
     const defaultGame = new Game({
@@ -301,7 +341,7 @@ describe('useSessionStore', () => {
     )
   })
 
-  it('refuses to create a second started session for one location', () => {
+  it('refuses to create a second open session for one location', () => {
     const startedSession = new Session('location-1', 1)
     localStorage.setItem(
       'pickleball_sessions',
@@ -310,36 +350,32 @@ describe('useSessionStore', () => {
     const store = useSessionStore()
 
     expect(() => store.createSessionForLocation('location-1'))
-      .toThrow('Location "location-1" already has a started session')
+      .toThrow('Location "location-1" already has an open session')
     expect(JSON.parse(localStorage.getItem('pickleball_sessions')))
       .toEqual([startedSession.toJSON()])
   })
 
-  it('adds a player to reactive state, waiting players and storage', async () => {
+  it('does not add a player outside the fixed attendee list', async () => {
     const store = useSessionStore()
-    await store.ensureSession()
+    await startPreparedSession(store)
     const player = new PlayerBuilder()
-      .withId('player-1')
-      .withName('alice')
+      .withId('outside-player')
+      .withName('outsider')
       .build()
 
     store.addPlayer(player)
 
-    expect(store.players.map(candidate => candidate.id)).toContain('player-1')
+    expect(store.players.map(candidate => candidate.id))
+      .not.toContain(player.id)
     expect(store.getWaitingPlayers.map(candidate => candidate.id))
-      .toContain('player-1')
-    expect(JSON.parse(localStorage.getItem('pickleball_players')))
-      .toContainEqual(player.toJSON())
+      .not.toContain(player.id)
+    expect(storageService.getPlayers().map(candidate => candidate.id))
+      .not.toContain(player.id)
   })
 
-  it('moves a player between a team and the waiting list', async () => {
+  it('moves a player before start without changing its AVAILABLE status', async () => {
     const store = useSessionStore()
-    await store.ensureSession()
-    const player = new PlayerBuilder()
-      .withId('player-1')
-      .withName('alice')
-      .build()
-    store.addPlayer(player)
+    const [player] = await startPreparedSession(store)
     const targetTeam = store.teams[0]
 
     store.movePlayer({
@@ -351,7 +387,7 @@ describe('useSessionStore', () => {
       .toContain(player.id)
     expect(store.getWaitingPlayers.map(candidate => candidate.id))
       .not.toContain(player.id)
-    expect(player.status).toBe(PlayerStatus.ACTIVE)
+    expect(player.status).toBe(PlayerStatus.AVAILABLE)
 
     store.movePlayer({
       playerId: player.id,
@@ -362,8 +398,127 @@ describe('useSessionStore', () => {
       .not.toContain(player.id)
     expect(store.getWaitingPlayers.map(candidate => candidate.id))
       .toContain(player.id)
-    expect(player.status).toBe(PlayerStatus.WAITING)
+    expect(player.status).toBe(PlayerStatus.AVAILABLE)
     expect(JSON.parse(localStorage.getItem('pickleball_players'))[0].status)
-      .toBe(PlayerStatus.WAITING)
+      .toBe(PlayerStatus.AVAILABLE)
+  })
+
+  it('keeps a removed team player AVAILABLE before start', async () => {
+    const store = useSessionStore()
+    const [player] = await startPreparedSession(store)
+    const targetTeam = store.teams[0]
+    store.movePlayer({
+      playerId: player.id,
+      targetTeamId: targetTeam.id
+    })
+
+    store.removePlayer(player.id)
+
+    expect(targetTeam.players).toHaveLength(0)
+    expect(store.rotation.waitingPlayers.map(candidate => candidate.id))
+      .toContain(player.id)
+    expect(player.status).toBe(PlayerStatus.AVAILABLE)
+    expect(JSON.parse(localStorage.getItem('pickleball_players'))[0].status)
+      .toBe(PlayerStatus.AVAILABLE)
+  })
+
+  it('excludes deleted players when preparing a rotation', async () => {
+    const availablePlayer = new PlayerBuilder()
+      .withId('player-1')
+      .withName('alice')
+      .build()
+    const deletedPlayer = new PlayerBuilder()
+      .withId('player-2')
+      .withName('bob')
+      .withStatus(PlayerStatus.DELETED)
+      .build()
+    localStorage.setItem(
+      'pickleball_players',
+      JSON.stringify([availablePlayer, deletedPlayer])
+    )
+    const store = useSessionStore()
+
+    await store.ensureSession()
+
+    expect(store.players.map(player => player.id)).toEqual(['player-1'])
+    expect(store.rotation).toBeNull()
+    expect(store.players[0].status).toBe(PlayerStatus.AVAILABLE)
+    expect(JSON.parse(localStorage.getItem('pickleball_players')))
+      .toContainEqual(deletedPlayer.toJSON())
+  })
+
+  it.each([
+    RotationStatus.IN_PROGRESS,
+    RotationStatus.SCORING,
+    RotationStatus.FINISHED
+  ])('refuses player movement while the rotation is %s', async status => {
+    const store = useSessionStore()
+    const [player] = await startPreparedSession(store)
+    const targetTeam = store.teams[0]
+    store.rotation.status = status
+
+    store.movePlayer({
+      playerId: player.id,
+      targetTeamId: targetTeam.id
+    })
+
+    expect(targetTeam.players).toHaveLength(0)
+    expect(store.rotation.waitingPlayers.map(candidate => candidate.id))
+      .toContain(player.id)
+  })
+
+  it('refuses to add a player after the rotation has started', async () => {
+    const store = useSessionStore()
+    await startPreparedSession(store)
+    store.rotation.status = RotationStatus.IN_PROGRESS
+    const player = new PlayerBuilder()
+      .withId('outside-player')
+      .withName('outsider')
+      .build()
+    const playerIds = store.players.map(candidate => candidate.id)
+    const waitingPlayerIds = store.rotation.waitingPlayers.map(
+      candidate => candidate.id
+    )
+
+    store.addPlayer(player)
+
+    expect(store.players.map(candidate => candidate.id)).toEqual(playerIds)
+    expect(store.rotation.waitingPlayers.map(candidate => candidate.id))
+      .toEqual(waitingPlayerIds)
+    expect(storageService.getPlayers().map(candidate => candidate.id))
+      .not.toContain(player.id)
+  })
+
+  it('refuses to remove a team player after the rotation has started', async () => {
+    const store = useSessionStore()
+    const [player] = await startPreparedSession(store)
+    const targetTeam = store.teams[0]
+    store.movePlayer({
+      playerId: player.id,
+      targetTeamId: targetTeam.id
+    })
+    store.rotation.status = RotationStatus.IN_PROGRESS
+    const waitingPlayerIds = store.rotation.waitingPlayers.map(
+      candidate => candidate.id
+    )
+
+    store.removePlayer(player.id)
+
+    expect(targetTeam.players.map(candidate => candidate.id))
+      .toContain(player.id)
+    expect(store.rotation.waitingPlayers.map(candidate => candidate.id))
+      .toEqual(waitingPlayerIds)
+  })
+
+  it('refuses to reconfigure courts after the rotation has started', async () => {
+    const store = useSessionStore()
+    await startPreparedSession(store)
+    const initialCourtIds = store.courts.map(court => court.id)
+    store.rotation.status = RotationStatus.IN_PROGRESS
+
+    store.setCourts(2)
+
+    expect(store.courts.map(court => court.id)).toEqual(initialCourtIds)
+    expect(store.courts).toHaveLength(1)
   })
 })

@@ -63,6 +63,13 @@ describe('router', () => {
     expect(ensureSession).toHaveBeenCalledWith()
   })
 
+  it('does not initialize a session for Manage Players', () => {
+    const route = router.resolve({ name: 'managePlayers' })
+
+    expect(route.matched.at(-1).beforeEnter).toBeUndefined()
+    expect(ensureSession).not.toHaveBeenCalled()
+  })
+
   it('redirects to home if ensureSession fails in the identified guard', async () => {
     ensureSession.mockRejectedValue(new Error('Session not found'))
 

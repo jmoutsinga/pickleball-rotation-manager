@@ -7,7 +7,7 @@ const routes = [
   },
   {
     path: '/manage',
-    heading: 'Training Session Manager'
+    heading: 'Session #1'
   },
   {
     path: '/manage-players',
@@ -371,5 +371,324 @@ describe('Application routes', () => {
         cy.get('.location-card-command-rail').should('be.visible')
         cy.get('.location-card-session-action').should('be.visible')
       })
+  })
+
+  it('loads and filters Players without initializing a Session', () => {
+    cy.visit('/manage-players', {
+      onBeforeLoad: window => {
+        window.localStorage.setItem('pickleball_players', JSON.stringify([
+          { id: 'player-1', name: 'élise', status: 'AVAILABLE' },
+          { id: 'player-2', name: 'alice', status: 'AVAILABLE' },
+          { id: 'player-3', name: 'bob', status: 'DELETED' }
+        ]))
+      }
+    })
+
+    cy.get('.card-grid').children().should('have.length', 3)
+    cy.get('.card-grid').children().first()
+      .should('have.class', 'create-entity-card')
+      .and('contain.text', 'Create Player')
+    cy.get('#player-card-player-3').should('not.exist')
+
+    cy.get('#player-search').type('ELISE')
+    cy.get('#player-card-player-1').should('be.visible')
+    cy.get('#player-card-player-2').should('not.exist')
+
+    cy.get('#player-search').clear()
+    let uncheckedThumbTransform
+
+    cy.get('#show-deleted-players').should(toggle => {
+      const style = getComputedStyle(toggle[0])
+
+      expect(toggle[0].checked).to.be.false
+      expect(toggle[0].getAttribute('role')).to.equal('switch')
+      expect(style.backgroundColor).to.equal('rgb(199, 206, 212)')
+      expect(style.borderRadius).to.equal('999px')
+      uncheckedThumbTransform = getComputedStyle(
+        toggle[0],
+        '::before'
+      ).transform
+    }).check().should(toggle => {
+      const style = getComputedStyle(toggle[0])
+      const checkedThumbTransform = getComputedStyle(
+        toggle[0],
+        '::before'
+      ).transform
+
+      expect(toggle[0].checked).to.be.true
+      expect(style.backgroundColor).to.equal('rgb(66, 185, 131)')
+      expect(checkedThumbTransform).not.to.equal(uncheckedThumbTransform)
+    })
+    cy.get('#player-card-player-3')
+      .should('be.visible')
+      .and('have.class', 'player-card--deleted')
+
+    cy.window().then(window => {
+      expect(window.localStorage.getItem('pickleball_sessions')).to.be.null
+    })
+  })
+
+  it('creates, edits, logically deletes and restores a Player', () => {
+    cy.visit('/manage-players')
+
+    cy.get('.create-entity-card').click()
+    cy.get('#player-form-name').type('Alice')
+    cy.get('.create-player-submit').click()
+
+    cy.contains('.player-card', 'alice')
+      .as('playerCard')
+      .should('have.class', 'player-card--selected')
+    cy.get('@playerCard').find('.player-card-edit').click()
+    cy.get('#player-form-name').clear().type('Alicia')
+    cy.get('.edit-player-submit').click()
+
+    cy.contains('.player-card', 'alicia')
+      .as('updatedPlayerCard')
+      .should('have.class', 'player-card--selected')
+    cy.get('@updatedPlayerCard').find('.player-card-delete').click()
+    cy.get('.delete-player-confirm').click()
+    cy.get('.player-card').should('not.exist')
+
+    cy.get('#show-deleted-players').check()
+    cy.contains('.player-card', 'alicia')
+      .as('deletedPlayerCard')
+      .should('have.class', 'player-card--deleted')
+      .find('.player-card-select')
+      .click()
+
+    cy.get('@deletedPlayerCard').then(card => {
+      const cardBounds = card[0].getBoundingClientRect()
+
+      cy.wrap(card).find('.player-card-restore').then(restore => {
+        const restoreBounds = restore[0].getBoundingClientRect()
+
+        expect(restoreBounds.top - cardBounds.top, 'restore top inset')
+          .to.be.closeTo(3, 1)
+        expect(
+          restoreBounds.left + restoreBounds.width / 2,
+          'restore horizontal center'
+        ).to.be.closeTo(cardBounds.left + cardBounds.width / 2, 1)
+      })
+    })
+
+    cy.get('@deletedPlayerCard').find('.player-card-restore').click()
+    cy.get('@deletedPlayerCard')
+      .should('have.class', 'player-card--selected')
+      .and('not.have.class', 'player-card--deleted')
+
+    cy.window().then(window => {
+      const players = JSON.parse(
+        window.localStorage.getItem('pickleball_players')
+      )
+
+      expect(players).to.have.length(1)
+      expect(players[0]).to.include({
+        name: 'alicia',
+        status: 'AVAILABLE'
+      })
+    })
+  })
+
+  it('blocks deletion of a Player linked to a started Session', () => {
+    cy.visit('/manage-players', {
+      onBeforeLoad: window => {
+        const player = {
+          id: 'player-1',
+          name: 'alice',
+          status: 'AVAILABLE'
+        }
+        window.localStorage.setItem(
+          'pickleball_players',
+          JSON.stringify([player])
+        )
+        window.localStorage.setItem('pickleball_sessions', JSON.stringify([
+          {
+            id: 'session-1',
+            locationId: 'location-1',
+            order: 1,
+            startTime: new Date().toISOString(),
+            endTime: null,
+            status: 'STARTED',
+            playerWaitingTimes: {}
+          }
+        ]))
+        window.localStorage.setItem('pickleball_rotations', JSON.stringify([
+          {
+            id: 'rotation-1',
+            sessionId: 'session-1',
+            order: 1,
+            games: [],
+            waitingPlayers: [player],
+            status: 'CREATED'
+          }
+        ]))
+      }
+    })
+
+    cy.get('.player-card-select').click()
+    cy.get('.player-card-delete').click()
+    cy.get('.delete-player-confirm').click()
+
+    cy.get('dialog[aria-label="Delete Player"]').should('be.visible')
+    cy.get('.modal-error')
+      .should('contain.text', 'cannot be deleted while linked')
+    cy.get('#player-card-player-1').should('be.visible')
+  })
+
+  it('persists attendee selection and starts a Session with at least four Players', () => {
+    cy.visit('/', {
+      onBeforeLoad: window => {
+        window.localStorage.setItem('pickleball_locations', JSON.stringify([
+          {
+            id: 'location-1',
+            name: 'Central Club',
+            description: 'Indoor courts',
+            nbCourts: 2,
+            status: 'ACTIVE'
+          }
+        ]))
+        const availablePlayers = Array.from({ length: 20 }, (_, index) => ({
+          id: `player-${index + 1}`,
+          name: `player-${index + 1}`,
+          status: 'AVAILABLE'
+        }))
+
+        window.localStorage.setItem('pickleball_players', JSON.stringify([
+          ...availablePlayers,
+          { id: 'player-21', name: 'waiting-player', status: 'WAITING' },
+          { id: 'player-22', name: 'deleted-player', status: 'DELETED' }
+        ]))
+      }
+    })
+
+    cy.get('#location-card-location-1 .location-card-select').click()
+    cy.get('.location-card-session-action').click()
+
+    cy.url().should('match', /\/manage\/location-1\/[0-9a-f-]+$/)
+    cy.contains('h2', 'Session #1').should('be.visible')
+    cy.get('.session-player-card').should('have.length', 20)
+    cy.get('.court-setup').should('not.exist')
+    cy.get('.courts-container').should('not.exist')
+    cy.get('.session-form__start').should('be.disabled')
+    cy.get('.session-form__header').should(header => {
+      expect(getComputedStyle(header[0]).position).to.equal('sticky')
+    })
+    cy.get('.session-form').should(form => {
+      const style = getComputedStyle(form[0])
+
+      expect(style.maxHeight).to.equal('none')
+      expect(style.overflowY).to.equal('visible')
+    })
+    cy.get('.session-form__grid-scroll').should(grid => {
+      const style = getComputedStyle(grid[0])
+
+      expect(style.overflowY).to.equal('visible')
+      expect(style.overflowX).to.equal('visible')
+      expect(grid[0].scrollHeight).to.equal(grid[0].clientHeight)
+    })
+    cy.get('.session-player-card').then(cards => {
+      const firstCard = cards[0].getBoundingClientRect()
+      const secondCard = cards[1].getBoundingClientRect()
+
+      expect(secondCard.top, 'wide viewport uses multiple columns')
+        .to.be.closeTo(firstCard.top, 1)
+      expect(firstCard.width, 'shared CardGrid card width')
+        .to.be.closeTo(350, 1)
+    })
+
+    cy.viewport(375, 800)
+    cy.get('.session-form__grid').then(grid => {
+      const gridBounds = grid[0].getBoundingClientRect()
+
+      cy.get('.session-player-card').then(cards => {
+        const firstCard = cards[0].getBoundingClientRect()
+        const secondCard = cards[1].getBoundingClientRect()
+
+        expect(secondCard.top, 'narrow viewport uses one column')
+          .to.be.greaterThan(firstCard.bottom)
+        expect(firstCard.left, 'card remains inside grid')
+          .to.be.at.least(gridBounds.left)
+        expect(firstCard.right, 'card remains inside grid')
+          .to.be.at.most(gridBounds.right + 1)
+      })
+    })
+    cy.document().then(document => {
+      expect(
+        document.documentElement.scrollHeight,
+        'the document owns the vertical scroll'
+      ).to.be.greaterThan(document.documentElement.clientHeight)
+    })
+    cy.scrollTo('bottom')
+    cy.get('.session-form__header').should(header => {
+      expect(
+        header[0].getBoundingClientRect().top,
+        'sticky header remains visible during page scroll'
+      ).to.be.closeTo(0, 1)
+    })
+    cy.scrollTo('top')
+    cy.viewport(1000, 660)
+
+    cy.get('.session-player-card').eq(0).click()
+    cy.get('.session-player-card').eq(0)
+      .should('have.class', 'session-player-card--selected')
+      .and('have.css', 'background-color', 'rgb(229, 247, 238)')
+      .find('.session-player-card__check')
+      .should('be.visible')
+      .find('circle')
+      .should('have.attr', 'r', '14')
+
+    cy.get('.session-player-card').eq(0).then(card => {
+      const cardBounds = card[0].getBoundingClientRect()
+
+      cy.wrap(card).find('.session-player-card__name').then(name => {
+        const nameBounds = name[0].getBoundingClientRect()
+
+        expect(
+          nameBounds.left + nameBounds.width / 2,
+          'player name horizontal center'
+        ).to.be.closeTo(cardBounds.left + cardBounds.width / 2, 1)
+        expect(
+          nameBounds.top + nameBounds.height / 2,
+          'player name vertical center'
+        ).to.be.closeTo(cardBounds.top + cardBounds.height / 2, 1)
+      })
+    })
+
+    cy.get('.session-player-card').eq(1).click()
+    cy.get('.session-player-card').eq(2).click()
+    cy.get('.session-form__start').should('be.disabled')
+    cy.get('.session-player-card').eq(3).click()
+    cy.get('.session-form__start').should('not.be.disabled')
+
+    cy.reload()
+
+    cy.get('.session-player-card--selected').should('have.length', 4)
+    cy.get('.session-form__start').should('not.be.disabled')
+    cy.get('.session-player-card').eq(0).click()
+    cy.get('.session-player-card--selected').should('have.length', 3)
+    cy.get('.session-form__start').should('be.disabled')
+    cy.get('.session-player-card').eq(0).click()
+    cy.get('.session-form__start').click()
+
+    cy.get('.session-form').should('not.exist')
+    cy.contains('h2', 'Training Session Manager').should('be.visible')
+    cy.get('.courts-container').should('be.visible')
+    cy.window().then(window => {
+      const [session] = JSON.parse(
+        window.localStorage.getItem('pickleball_sessions')
+      )
+      const [rotation] = JSON.parse(
+        window.localStorage.getItem('pickleball_rotations')
+      )
+
+      expect(session.status).to.equal('STARTED')
+      expect(session.startTime).to.be.a('string')
+      expect(session.attendingPlayers.map(player => player.id))
+        .to.deep.equal(['player-2', 'player-3', 'player-4', 'player-1'])
+      expect(rotation.waitingPlayers.map(player => player.id))
+        .to.deep.equal(['player-2', 'player-3', 'player-4', 'player-1'])
+      expect(rotation.waitingPlayers.map(player => player.id))
+        .not.to.include('player-5')
+    })
   })
 })

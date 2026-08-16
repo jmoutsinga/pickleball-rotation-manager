@@ -47,6 +47,34 @@ class StorageService {
     }
   }
 
+  changePlayerStatus(playerId, status) {
+    const players = this.getPlayers();
+    const player = players.find(candidate => candidate.id === playerId);
+
+    if (!player) {
+      throw new Error(`Player "${playerId}" does not exist`);
+    }
+
+    player.changeStatus(status);
+    this.savePlayers(players);
+
+    return player;
+  }
+
+  updatePlayers(updatedPlayers) {
+    const updatedById = new Map(
+      updatedPlayers.map(player => {
+        this.assertPlayer(player);
+        return [player.id, player];
+      })
+    );
+    const players = this.getPlayers().map(
+      player => updatedById.get(player.id) ?? player
+    );
+
+    this.savePlayers(players);
+  }
+
   getPlayers() {
     const players = localStorage.getItem(STORAGE_KEYS.PLAYERS);
     return players ? JSON.parse(players).map(PlayerBuilder.fromJson) : [];
@@ -54,7 +82,7 @@ class StorageService {
 
   getWaitingPlayers() {
     const players = this.getPlayers();
-    return players.filter(p => p.status === 'waiting');
+    return players.filter(p => p.status === PlayerStatus.WAITING);
   }
 
   savePlayer(player) {
@@ -69,7 +97,7 @@ class StorageService {
     const players = this.getPlayers();
     const player = players.find(p => p.id === playerId);
     if (player) {
-      player.changeStatus(teamId ? PlayerStatus.ACTIVE : PlayerStatus.WAITING);
+      player.changeStatus(teamId ? PlayerStatus.PLAYING : PlayerStatus.WAITING);
       this.savePlayers(players);
     }
   }
@@ -78,7 +106,7 @@ class StorageService {
     const players = this.getPlayers();
     const player = players.find(p => p.id === playerId);
     if (player) {
-      player.changeStatus(PlayerStatus.WAITING);
+      player.changeStatus(PlayerStatus.AVAILABLE);
       this.savePlayers(players);
     }
   }
@@ -139,7 +167,70 @@ class StorageService {
   }
 
   getSessions() {
-    return this.getCollection(STORAGE_KEYS.SESSIONS).map(Session.fromJson);
+    const sessionJsons = this.getCollection(STORAGE_KEYS.SESSIONS);
+    const requiresAttendeeMigration = sessionJsons.some(
+      session => !Array.isArray(session.attendingPlayers)
+    );
+
+    if (!requiresAttendeeMigration) {
+      return sessionJsons.map(Session.fromJson);
+    }
+
+    const players = this.getPlayers();
+    const playersById = new Map(players.map(player => [player.id, player]));
+    const rotations = this.getRotations();
+    const teamsById = new Map(
+      this.getTeams().map(team => [team.id, team])
+    );
+
+    const sessions = sessionJsons.map(sessionJson => {
+      if (Array.isArray(sessionJson.attendingPlayers)) {
+        return Session.fromJson(sessionJson);
+      }
+
+      const sessionRotations = rotations.filter(
+        rotation => rotation.sessionId === sessionJson.id
+      );
+      let attendingPlayers = [];
+
+      if (sessionRotations.length > 0) {
+        const attendeesById = new Map();
+
+        sessionRotations.forEach(rotation => {
+          rotation.waitingPlayers.forEach(player => {
+            attendeesById.set(
+              player.id,
+              playersById.get(player.id) ?? player
+            );
+          });
+
+          rotation.games.forEach(game => {
+            [game.teamAId, game.teamBId].forEach(teamId => {
+              teamsById.get(teamId)?.players.forEach(player => {
+                attendeesById.set(
+                  player.id,
+                  playersById.get(player.id) ?? player
+                );
+              });
+            });
+          });
+        });
+
+        attendingPlayers = [...attendeesById.values()];
+      } else if (sessionJson.status !== SessionStatus.CREATED) {
+        attendingPlayers = players.filter(
+          player => player.status !== PlayerStatus.DELETED
+        );
+      }
+
+      return Session.fromJson({
+        ...sessionJson,
+        attendingPlayers: attendingPlayers.map(player => player.toJSON())
+      });
+    });
+
+    this.saveSessions(sessions);
+    return sessions;
   }
 
   saveSession(session) {

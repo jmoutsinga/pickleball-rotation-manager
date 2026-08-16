@@ -6,6 +6,7 @@ import {
     LocationBuilder,
     PlayerStatus,
     Rotation,
+    RotationStatus,
     Session,
     SessionStatus,
     Team
@@ -54,6 +55,15 @@ export const useSessionStore = defineStore('session', {
                 session.status === SessionStatus.STARTED
             ),
 
+        openSessionsByLocationId: state => locationId =>
+            state.sessions.filter(session =>
+                session.locationId === locationId &&
+                (
+                    session.status === SessionStatus.CREATED ||
+                    session.status === SessionStatus.STARTED
+                )
+            ),
+
         canEditCourtCountByLocationId: state => locationId =>
             !state.sessions.some(session =>
                 session.locationId === locationId &&
@@ -71,13 +81,15 @@ export const useSessionStore = defineStore('session', {
             const locationSessions = sessions.filter(
                 session => session.locationId === locationId
             )
-            const hasStartedSession = locationSessions.some(
-                session => session.status === SessionStatus.STARTED
+            const hasOpenSession = locationSessions.some(
+                session =>
+                    session.status === SessionStatus.CREATED ||
+                    session.status === SessionStatus.STARTED
             )
 
-            if (hasStartedSession) {
+            if (hasOpenSession) {
                 throw new Error(
-                    `Location "${locationId}" already has a started session`
+                    `Location "${locationId}" already has an open session`
                 )
             }
 
@@ -98,7 +110,10 @@ export const useSessionStore = defineStore('session', {
 
             if (
                 this.session &&
-                this.rotation &&
+                (
+                    this.session?.status === SessionStatus.CREATED ||
+                    this.rotation
+                ) &&
                 (
                     !hasIdentifiers ||
                     (
@@ -110,7 +125,7 @@ export const useSessionStore = defineStore('session', {
                 return
             }
 
-            const players = storageService.getPlayers()
+            const catalogPlayers = storageService.getPlayers()
             const locations = storageService.getLocations()
             const sessions = storageService.getSessions()
             const rotations = storageService.getRotations()
@@ -155,17 +170,57 @@ export const useSessionStore = defineStore('session', {
                         .withDescription('')
                         .withNbCourts(Math.max(storedCourts.length, 1))
                         .build()
+                    storageService.saveLocation(location)
                 }
 
                 session = sessions.find(candidate =>
                     candidate.locationId === location.id &&
-                    candidate.status === 'STARTED'
+                    (
+                        candidate.status === SessionStatus.CREATED ||
+                        candidate.status === SessionStatus.STARTED
+                    )
                 )
 
                 if (!session) {
                     session = this.createSessionForLocation(location.id)
                 }
             }
+
+            if (session.status === SessionStatus.CREATED) {
+                const availablePlayers = catalogPlayers.filter(
+                    player => player.status === PlayerStatus.AVAILABLE
+                )
+                const availablePlayersById = new Map(
+                    availablePlayers.map(player => [player.id, player])
+                )
+                const availableAttendees = session.attendingPlayers
+                    .map(player => availablePlayersById.get(player.id))
+                    .filter(player => player !== undefined)
+
+                if (
+                    availableAttendees.length !==
+                    session.attendingPlayers.length
+                ) {
+                    session.updateAttendingPlayers(availableAttendees)
+                    storageService.saveSession(session)
+                }
+
+                this.location = location
+                this.session = session
+                this.rotation = null
+                this.courts = []
+                this.teams = []
+                this.players = availablePlayers
+                this.sessions = storageService.getSessions()
+                return
+            }
+
+            const catalogPlayersById = new Map(
+                catalogPlayers.map(player => [player.id, player])
+            )
+            const players = session.attendingPlayers.map(
+                player => catalogPlayersById.get(player.id) ?? player
+            )
 
             let courts = storedCourts
                 .filter(court => court.locationId === location.id)
@@ -200,7 +255,7 @@ export const useSessionStore = defineStore('session', {
                 }))
 
                 players.forEach(player =>
-                    player.changeStatus(PlayerStatus.WAITING)
+                    player.changeStatus(PlayerStatus.AVAILABLE)
                 )
 
                 rotation = new Rotation(
@@ -230,6 +285,12 @@ export const useSessionStore = defineStore('session', {
                 rotation.waitingPlayers = players.filter(
                     player => !assignedPlayerIds.has(player.id)
                 )
+
+                if (rotation.status === RotationStatus.CREATED) {
+                    players.forEach(player =>
+                        player.changeStatus(PlayerStatus.AVAILABLE)
+                    )
+                }
             }
 
             this.location = location
@@ -240,11 +301,117 @@ export const useSessionStore = defineStore('session', {
             this.players = players
             this.sessions = storageService.getSessions()
 
-            storageService.savePlayers(players)
+            storageService.updatePlayers(players)
             storageService.saveSessionGraph(this)
         },
 
+        updateAttendingPlayers(playerIds) {
+            if (!this.session) {
+                throw new Error('No session is loaded')
+            }
+
+            const uniquePlayerIds = [...new Set(playerIds)]
+            if (uniquePlayerIds.length !== playerIds.length) {
+                throw new Error('Attending players must be unique')
+            }
+
+            const availablePlayersById = new Map(
+                storageService.getPlayers()
+                    .filter(player =>
+                        player.status === PlayerStatus.AVAILABLE
+                    )
+                    .map(player => [player.id, player])
+            )
+            const attendingPlayers = uniquePlayerIds.map(playerId => {
+                const player = availablePlayersById.get(playerId)
+
+                if (!player) {
+                    throw new Error(
+                        `Player "${playerId}" is not available`
+                    )
+                }
+
+                return player
+            })
+
+            this.session.updateAttendingPlayers(attendingPlayers)
+            storageService.saveSession(this.session)
+            this.sessions = storageService.getSessions()
+        },
+
+        startSession(at = new Date()) {
+            if (!this.session || !this.location) {
+                throw new Error('No session is loaded')
+            }
+
+            if (this.session.attendingPlayers.length < 4) {
+                throw new Error(
+                    'A session requires at least 4 attending players'
+                )
+            }
+
+            const catalogPlayersById = new Map(
+                storageService.getPlayers().map(player => [player.id, player])
+            )
+            const attendingPlayers = this.session.attendingPlayers.map(
+                player => catalogPlayersById.get(player.id)
+            )
+
+            if (attendingPlayers.some(player =>
+                !player || player.status !== PlayerStatus.AVAILABLE
+            )) {
+                throw new Error(
+                    'Attending players must be available when the session starts'
+                )
+            }
+
+            this.session.updateAttendingPlayers(attendingPlayers)
+            this.session.start(at)
+
+            const storedCourts = storageService.getCourts()
+            let courts = storedCourts
+                .filter(court => court.locationId === this.location.id)
+                .map(court =>
+                    court instanceof Court ? court : Court.fromJson(court)
+                )
+
+            if (!courts.length) {
+                courts = Array.from(
+                    { length: this.location.nbCourts },
+                    (_, index) => new Court(this.location.id, index + 1)
+                )
+            }
+
+            const teams = courts.flatMap(() => [new Team(), new Team()])
+            const games = courts.map((court, index) => new Game({
+                courtId: court.id,
+                teamAId: teams[index * 2].id,
+                teamBId: teams[index * 2 + 1].id,
+                scoreTeamA: null,
+                scoreTeamB: null,
+                winnerTeam: null,
+                loserTeam: null
+            }))
+            const rotation = new Rotation(
+                this.session.id,
+                1,
+                games,
+                [...attendingPlayers]
+            )
+
+            this.courts = courts
+            this.teams = teams
+            this.players = attendingPlayers
+            this.rotation = rotation
+
+            storageService.updatePlayers(attendingPlayers)
+            storageService.saveSessionGraph(this)
+            this.sessions = storageService.getSessions()
+        },
+
         setCourts(numCourts) {
+            if (this.rotation?.status !== RotationStatus.CREATED) return
+
             const locationBuilder = new LocationBuilder()
                 .withName('default')
                 .withDescription(this.location?.description ?? '')
@@ -285,7 +452,7 @@ export const useSessionStore = defineStore('session', {
             )
 
             this.players.forEach(player =>
-                player.changeStatus(PlayerStatus.WAITING)
+                player.changeStatus(PlayerStatus.AVAILABLE)
             )
 
             this.location = location
@@ -293,11 +460,19 @@ export const useSessionStore = defineStore('session', {
             this.rotation = rotation
             this.teams = teams
 
-            storageService.savePlayers(this.players)
+            storageService.updatePlayers(this.players)
             storageService.saveSessionGraph(this)
         },
 
         addPlayer(player) {
+            if (this.rotation?.status !== RotationStatus.CREATED) return
+            if (!this.session?.attendingPlayers.some(
+                attendee => attendee.id === player.id
+            )) return
+            if (this.players.some(candidate => candidate.id === player.id)) {
+                return
+            }
+
             storageService.savePlayer(player)
 
             this.players.push(player)
@@ -340,6 +515,8 @@ export const useSessionStore = defineStore('session', {
         },
 
         removePlayer(playerId) {
+            if (this.rotation?.status !== RotationStatus.CREATED) return
+
             const player = this.players.find(
                 candidate => candidate.id === playerId
             )
@@ -347,7 +524,7 @@ export const useSessionStore = defineStore('session', {
             if (!player) return
 
             this.teams.forEach(team => team.removePlayer(playerId))
-            player.changeStatus(PlayerStatus.WAITING)
+            player.changeStatus(PlayerStatus.AVAILABLE)
 
             const alreadyWaiting =
                 this.rotation.waitingPlayers.some(
@@ -363,6 +540,8 @@ export const useSessionStore = defineStore('session', {
         },
 
         movePlayer({ playerId, targetTeamId }) {
+            if (this.rotation?.status !== RotationStatus.CREATED) return
+
             const player = this.players.find(
                 candidate => candidate.id === playerId
             )
@@ -400,13 +579,10 @@ export const useSessionStore = defineStore('session', {
 
             if (targetTeam) {
                 targetTeam.addPlayer(player)
-                player.changeStatus(PlayerStatus.ACTIVE)
             } else {
-                player.changeStatus(PlayerStatus.WAITING)
                 this.rotation.waitingPlayers.push(player)
             }
 
-            storageService.updatePlayerTeam(playerId, targetTeamId)
             storageService.saveSessionGraph(this)
         }
     }

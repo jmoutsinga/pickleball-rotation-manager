@@ -69,7 +69,7 @@
         @click="manageSession"
       >
         <svg
-          v-if="startedSessionCount === 0"
+          v-if="openSessionCount === 0"
           class="location-card-session-icon location-card-session-icon--play"
           viewBox="0 0 40 40"
           aria-hidden="true"
@@ -113,7 +113,7 @@
         class="location-card-session-error"
         role="alert"
       >
-        Multiple started sessions found. Session management is unavailable.
+        Multiple open sessions found. Session management is unavailable.
       </p>
     </div>
   </article>
@@ -121,7 +121,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { Location } from '@/models'
+import { SessionStatus, type Location } from '@/models'
 
 type LocationCardModel = Pick<
   Location,
@@ -131,10 +131,12 @@ type LocationCardModel = Pick<
 const props = withDefaults(defineProps<{
   location: LocationCardModel
   isSelected?: boolean
-  startedSessionCount?: number
+  openSessionCount?: number
+  openSessionStatus?: SessionStatus | null
 }>(), {
   isSelected: false,
-  startedSessionCount: 0
+  openSessionCount: 0,
+  openSessionStatus: null
 })
 
 const emit = defineEmits<{
@@ -152,11 +154,18 @@ const courtLabel = computed(() => {
 })
 
 const sessionActionLabel = computed(() => {
-  if (props.startedSessionCount === 0) {
+  if (props.openSessionCount === 0) {
     return 'Start New Session'
   }
 
-  if (props.startedSessionCount === 1) {
+  if (
+    props.openSessionCount === 1 &&
+    props.openSessionStatus === SessionStatus.CREATED
+  ) {
+    return 'Continue Session Setup'
+  }
+
+  if (props.openSessionCount === 1) {
     return 'Manage Current Session'
   }
 
@@ -164,13 +173,13 @@ const sessionActionLabel = computed(() => {
 })
 
 const sessionActionClass = computed(() =>
-  props.startedSessionCount === 0
+  props.openSessionCount === 0
     ? 'location-card-session-action--start'
     : 'location-card-session-action--manage'
 )
 
 const sessionActionShortLabel = computed(() =>
-  props.startedSessionCount === 0 ? 'Start' : 'Continue'
+  props.openSessionCount === 0 ? 'Start' : 'Continue'
 )
 
 function selectLocation(): void {

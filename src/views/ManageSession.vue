@@ -1,6 +1,16 @@
 <template>
   <div class="manage-session">
-    <h2>Training Session Manager</h2>
+    <SessionForm
+      v-if="isPreparingSession"
+      :session-order="session.order"
+      :available-players="players"
+      :selected-player-ids="selectedAttendingPlayerIds"
+      @selection-change="updateAttendingPlayers"
+      @start="handleStartSession"
+    />
+
+    <template v-else>
+      <h2>Training Session Manager</h2>
     
     <!-- Court Setup -->
     <div class="court-setup" v-if="!courtsInitialized">
@@ -20,17 +30,6 @@
     </div>
 
     <div v-else>
-      <!-- Add Player Form -->
-      <div class="add-player-form">
-        <label for="player-name">Player name:</label>
-        <input
-            id="player-name"
-            v-model="newPlayerName"
-            placeholder="Enter player name"
-            @keyup.enter="addNewPlayer"
-        >        <button @click="addNewPlayer" :disabled="!newPlayerName">Add Player</button>
-      </div>
-
       <div class="courts-container">
         <!-- Courts Grid -->
         <div class="courts-grid">
@@ -112,19 +111,21 @@
         </div>
       </div>
     </div>
+    </template>
   </div>
 </template>
 
 <script>
 import { mapActions, mapState } from 'pinia'
-import { PlayerBuilder } from '@/models'
+import { SessionStatus } from '@/models'
+import SessionForm from '@/components/SessionForm.vue'
 import { useSessionStore } from '@/stores/session'
 
 export default {
   name: 'ManageSession',
+  components: { SessionForm },
   data() {
     return {
-      newPlayerName: '',
       numCourts: 1,
       courtsInitialized: false,
       draggedPlayerId: null,
@@ -134,28 +135,34 @@ export default {
   computed: {
     ...mapState(useSessionStore, {
       courts: 'getCourts',
-      waitingPlayers: 'getWaitingPlayers'
-    })
+      waitingPlayers: 'getWaitingPlayers',
+      session: 'session',
+      players: 'players'
+    }),
+    isPreparingSession() {
+      return this.session?.status === SessionStatus.CREATED
+    },
+    selectedAttendingPlayerIds() {
+      return this.session?.attendingPlayers.map(player => player.id) ?? []
+    }
   },
   methods: {
     ...mapActions(useSessionStore, [
       'setCourts',
-      'addPlayer',
       'removePlayer',
-      'movePlayer'
+      'movePlayer',
+      'updateAttendingPlayers',
+      'startSession'
     ]),
+    handleStartSession() {
+      this.startSession()
+      this.courtsInitialized = this.courts.length > 0
+      this.numCourts = this.courts.length || this.numCourts
+    },
     async initializeCourts() {
       if (this.numCourts > 0) {
         await this.setCourts(this.numCourts)
         this.courtsInitialized = true
-      }
-    },
-    addNewPlayer() {
-      if (this.newPlayerName.trim()) {
-        this.addPlayer(new PlayerBuilder()
-          .withName(this.newPlayerName)
-          .build())
-        this.newPlayerName = ''
       }
     },
     onDragStart(event, playerId, source) {
@@ -188,6 +195,9 @@ export default {
 
 <style scoped>
 .manage-session {
+  flex: 1;
+  box-sizing: border-box;
+  width: 100%;
   padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
@@ -207,19 +217,6 @@ export default {
 .setup-form input {
   padding: 8px;
   width: 150px;
-}
-
-.add-player-form {
-  margin-bottom: 30px;
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-  align-items: center;
-}
-
-.add-player-form input {
-  padding: 8px;
-  width: 200px;
 }
 
 button {

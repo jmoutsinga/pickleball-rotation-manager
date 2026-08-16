@@ -13,7 +13,8 @@
         :key="location.id"
         :location="location"
         :is-selected="selectedLocationId === location.id"
-        :started-session-count="sessionStore.startedSessionsByLocationId(location.id).length"
+        :open-session-count="openSessionsForLocation(location.id).length"
+        :open-session-status="openSessionsForLocation(location.id)[0]?.status ?? null"
         @select="selectLocation"
         @edit="openEditLocationModal"
         @delete="openDeleteLocationModal"
@@ -220,14 +221,13 @@ function saveLocation(formData: LocationFormData): void {
 }
 
 function handleSessionAction(locationId: string): void {
-  const startedSessions: Session[] =
-    sessionStore.startedSessionsByLocationId(locationId)
+  const openSessions = openSessionsForLocation(locationId)
   let session: Session
 
-  if (startedSessions.length === 0) {
+  if (openSessions.length === 0) {
     session = sessionStore.createSessionForLocation(locationId)
-  } else if (startedSessions.length === 1) {
-    session = startedSessions[0]
+  } else if (openSessions.length === 1) {
+    session = openSessions[0]
   } else {
     return
   }
@@ -239,6 +239,10 @@ function handleSessionAction(locationId: string): void {
       sessionId: session.id
     }
   })
+}
+
+function openSessionsForLocation(locationId: string): Session[] {
+  return sessionStore.openSessionsByLocationId(locationId) as Session[]
 }
 
 function clearSelection(): void {

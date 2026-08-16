@@ -1,5 +1,6 @@
 import { Game, GameJson } from './Game'
 import { Player, PlayerBuilder, PlayerJson } from './Player'
+import { RotationStatus } from './RotationStatus'
 
 export interface RotationJson {
   id: string
@@ -7,6 +8,7 @@ export interface RotationJson {
   order: number
   games: GameJson[]
   waitingPlayers: PlayerJson[]
+  status?: RotationStatus
 }
 
 export class Rotation {
@@ -15,8 +17,16 @@ export class Rotation {
   readonly order: number
   readonly games: Game[]
   waitingPlayers: Player[]
+  status: RotationStatus
 
-  constructor(sessionId: string, order: number, games: Game[], waitingPlayers: Player[], id: string = crypto.randomUUID()) {
+  constructor(
+    sessionId: string,
+    order: number,
+    games: Game[],
+    waitingPlayers: Player[],
+    id: string = crypto.randomUUID(),
+    status: RotationStatus = RotationStatus.CREATED
+  ) {
     if (!sessionId) throw new Error('Rotation sessionId is required')
     if (!Number.isInteger(order) || order < 1) throw new Error('Rotation order must be a positive integer')
     this.id = id
@@ -24,6 +34,7 @@ export class Rotation {
     this.order = order
     this.games = games
     this.waitingPlayers = waitingPlayers
+    this.status = status
   }
 
   static fromJson(json: RotationJson): Rotation {
@@ -32,7 +43,8 @@ export class Rotation {
       json.order,
       json.games.map(Game.fromJson),
       json.waitingPlayers.map(PlayerBuilder.fromJson),
-      json.id
+      json.id,
+      json.status ?? RotationStatus.CREATED
     )
   }
 
@@ -42,7 +54,8 @@ export class Rotation {
       sessionId: this.sessionId,
       order: this.order,
       games: this.games.map(game => game.toJSON()),
-      waitingPlayers: this.waitingPlayers.map(player => player.toJSON())
+      waitingPlayers: this.waitingPlayers.map(player => player.toJSON()),
+      status: this.status
     }
   }
 }

@@ -52,8 +52,7 @@ const routes = [
   {
     path: '/manage-players',
     name: 'managePlayers',
-    component: ManagePlayers,
-    beforeEnter: ensureSessionGuard
+    component: ManagePlayers
   }
 ]
 

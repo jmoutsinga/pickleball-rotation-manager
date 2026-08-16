@@ -6,7 +6,7 @@ const PLAYER_NAME_PATTERN = /^[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*$/u
 export interface PlayerJson {
   id: string
   name: string
-  status: PlayerStatus
+  status: PlayerStatus | 'ACTIVE'
 }
 
 export class Player {
@@ -70,10 +70,14 @@ export class PlayerBuilder {
   }
 
   static fromJson(json: PlayerJson): Player {
+    const status = json.status === 'ACTIVE'
+      ? PlayerStatus.PLAYING
+      : json.status
+
     return new PlayerBuilder()
       .withId(json.id)
       .withName(json.name)
-      .withStatus(json.status)
+      .withStatus(status)
       .build()
   }
 

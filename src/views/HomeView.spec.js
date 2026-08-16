@@ -30,6 +30,14 @@ const createLocation = (
   .withNbCourts(nbCourts)
   .build()
 
+const createStartedSession = (locationId, order) => new Session(
+  locationId,
+  order,
+  new Date('2026-08-16T10:00:00.000Z'),
+  null,
+  SessionStatus.STARTED
+)
+
 const mountHome = (locations, sessions = []) => {
   const testingPinia = createTestingPinia({
     initialState: {
@@ -301,7 +309,7 @@ describe('HomeView', () => {
 
   it('disables the court count while the location has a started session', async () => {
     const location = createLocation('location-1', 'Central Club', 4)
-    const startedSession = new Session(location.id, 1)
+    const startedSession = createStartedSession(location.id, 1)
     const { wrapper } = mountHome([location], [startedSession])
     const card = wrapper.get('.location-card')
 
@@ -451,14 +459,14 @@ describe('HomeView', () => {
     expect(wrapper.findAll('.location-card-session-action')).toHaveLength(0)
   })
 
-  it('labels the action from the started-session cardinality', async () => {
+  it('labels the action from the open-session status', async () => {
     const firstLocation = createLocation('location-1', 'Central Club', 4)
     const secondLocation = createLocation('location-2', 'Westside Club', 2)
-    const startedSession = new Session(secondLocation.id, 1)
+    const createdSession = new Session(secondLocation.id, 1)
 
     const { wrapper } = mountHome(
       [firstLocation, secondLocation],
-      [startedSession]
+      [createdSession]
     )
     const cards = wrapper.findAll('.location-card')
 
@@ -476,10 +484,10 @@ describe('HomeView', () => {
 
     expect(continueAction.text()).toBe('Continue')
     expect(continueAction.attributes('aria-label'))
-      .toBe('Manage Current Session for Westside Club')
+      .toBe('Continue Session Setup for Westside Club')
   })
 
-  it('shows an error instead of an action for multiple started sessions', async () => {
+  it('shows an error instead of an action for multiple open sessions', async () => {
     const location = createLocation('location-1', 'Central Club', 4)
     const sessions = [
       new Session(location.id, 1),
@@ -493,7 +501,7 @@ describe('HomeView', () => {
 
     expect(card.find('.location-card-session-action').exists()).toBe(false)
     expect(card.get('[role="alert"]').text())
-      .toContain('Multiple started sessions')
+      .toContain('Multiple open sessions')
   })
 
   it('creates a session from the action of a location without a started session', async () => {
@@ -521,12 +529,12 @@ describe('HomeView', () => {
     })
   })
 
-  it('navigates to the unique started session without creating one', async () => {
+  it('navigates to the unique created session without creating another one', async () => {
     const location = createLocation('location-1', 'Central Club', 4)
-    const startedSession = new Session(location.id, 3)
+    const createdSession = new Session(location.id, 3)
     const { wrapper, sessionStore } = mountHome(
       [location],
-      [startedSession]
+      [createdSession]
     )
     const card = wrapper.get('.location-card')
 
@@ -539,8 +547,20 @@ describe('HomeView', () => {
       name: 'manageSession',
       params: {
         locationId: location.id,
-        sessionId: startedSession.id
+        sessionId: createdSession.id
       }
     })
+  })
+
+  it('labels a started session as the current session', async () => {
+    const location = createLocation('location-1', 'Central Club', 4)
+    const startedSession = createStartedSession(location.id, 1)
+    const { wrapper } = mountHome([location], [startedSession])
+    const card = wrapper.get('.location-card')
+
+    await card.get('.location-card-select').trigger('click')
+
+    expect(card.get('.location-card-session-action').attributes('aria-label'))
+      .toBe('Manage Current Session for Central Club')
   })
 })

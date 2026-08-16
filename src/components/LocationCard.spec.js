@@ -2,7 +2,7 @@
 
 import { afterEach, describe, expect, it } from 'vitest'
 import { enableAutoUnmount, mount } from '@vue/test-utils'
-import { LocationBuilder } from '@/models'
+import { LocationBuilder, SessionStatus } from '@/models'
 import LocationCard from './LocationCard.vue'
 
 enableAutoUnmount(afterEach)
@@ -260,7 +260,8 @@ describe('LocationCard', () => {
             props: {
                 location,
                 isSelected: true,
-                startedSessionCount: 1
+                openSessionCount: 1,
+                openSessionStatus: SessionStatus.STARTED
             }
         })
 
@@ -283,7 +284,7 @@ describe('LocationCard', () => {
         expect(wrapper.find('[role="alert"]').exists()).toBe(false)
     })
 
-    it('blocks the session action when multiple sessions are started', () => {
+    it('blocks the session action when multiple sessions are open', () => {
         const location = new LocationBuilder()
             .withName('Test Location')
             .withNbCourts(4)
@@ -293,14 +294,15 @@ describe('LocationCard', () => {
             props: {
                 location,
                 isSelected: true,
-                startedSessionCount: 2
+                openSessionCount: 2,
+                openSessionStatus: SessionStatus.CREATED
             }
         })
 
         expect(wrapper.find('.location-card-session-action').exists())
             .toBe(false)
         expect(wrapper.get('[role="alert"]').text())
-            .toContain('Multiple started sessions')
+            .toContain('Multiple open sessions')
     })
 
 })
