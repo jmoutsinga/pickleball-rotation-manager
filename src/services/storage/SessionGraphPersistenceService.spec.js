@@ -5,6 +5,7 @@ import {
   Court,
   Game,
   LocationBuilder,
+  PlayerBuilder,
   Rotation,
   Session,
   SessionStatus,
@@ -18,6 +19,12 @@ function createGraph() {
     .withName('Central Club')
     .withNbCourts(1)
     .build()
+  const attendees = Array.from({ length: 4 }, (_, index) =>
+    new PlayerBuilder()
+      .withId(`player-${index + 1}`)
+      .withName(`player-${index + 1}`)
+      .build()
+  )
   const session = new Session(
     location.id,
     1,
@@ -25,7 +32,8 @@ function createGraph() {
     null,
     SessionStatus.STARTED,
     new Map(),
-    'session-1'
+    'session-1',
+    attendees
   )
   const court = new Court(location.id, 1, 'court-1')
   const teams = [
@@ -46,7 +54,7 @@ function createGraph() {
     session.id,
     1,
     [game],
-    [],
+    attendees,
     'rotation-1'
   )
 

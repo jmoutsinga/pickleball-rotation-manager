@@ -7,6 +7,7 @@ import rotationRepository from './storage/RotationRepository'
 import sessionGraphPersistenceService from './storage/SessionGraphPersistenceService'
 import sessionPersistenceService from './storage/SessionPersistenceService'
 import sessionRepository from './storage/SessionRepository'
+import sessionUsableCourtMigration from './storage/SessionUsableCourtMigration'
 import { STORAGE_KEYS } from './storage/StorageKeys'
 import teamRepository from './storage/TeamRepository'
 
@@ -97,6 +98,10 @@ class StorageService {
 
   getRotations() {
     return rotationGameNumberMigration.migrate();
+  }
+
+  migrateSessionUsableCourts(graphContext) {
+    return sessionUsableCourtMigration.migrate(graphContext)
   }
 
   saveTeams(teams) {

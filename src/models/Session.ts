@@ -116,6 +116,17 @@ export class Session {
     )
   }
 
+  getUsableCourtCount(locationCourtCount: number): number {
+    if (!Number.isInteger(locationCourtCount) || locationCourtCount < 1) {
+      throw new Error('Location court count must be a positive integer')
+    }
+
+    return Math.min(
+      locationCourtCount,
+      Math.floor(this._attendingPlayers.length / 4)
+    )
+  }
+
   static fromJson(json: SessionJson): Session {
     return new Session(
       json.locationId,

@@ -27,15 +27,21 @@ logicielle, mais approfondit actuellement Vue.js.
 ## Plan de développement persistant
 
 Le fichier `PLAN.md` à la racine du projet constitue la source de vérité
-pour le plan de développement en cours.
+pour l'état courant, la feuille de route et la prochaine action. Le détail de
+chaque étape se trouve dans `docs/plan/`.
 
 - Lire intégralement `PLAN.md` avant de commencer toute nouvelle tâche.
+- Lire ensuite intégralement uniquement le fichier de l'étape active indiqué par `PLAN.md`.
+- Ne pas charger automatiquement les fichiers des étapes terminées ou futures.
+- Consulter `docs/ATTENDU_FONCTIONNEL.md` seulement pour les sections nécessaires à la tâche en cours.
+- Rechercher dans `docs/DECISIONS_TECHNIQUES.md` uniquement les décisions liées à l'étape, au composant ou au concept traité ; ne pas lire tout l'historique sans nécessité.
 - Lorsqu'un plan de développement est établi ou modifié dans une conversation, l'enregistrer dans `PLAN.md` avant de commencer l'implémentation.
 - Ne pas considérer le contenu de la conversation comme la seule source du plan de développement.
-- Maintenir `PLAN.md` à jour au fur et à mesure de l'avancement.
+- Maintenir le fichier détaillé de l'étape active au fur et à mesure de l'avancement, puis reporter dans `PLAN.md` uniquement le résumé, l'état et la prochaine action.
 - Marquer explicitement les étapes terminées et celles restant à réaliser.
-- Enregistrer dans `PLAN.md` toutes les décisions techniques prises pendant le développement et leur justification en ajoutant la date-heure-min-sec à laquelle la décision a été prise (journal / log des décisions).
-- En cas de contradiction entre `PLAN.md` et une instruction explicite donnée par l'utilisateur dans la conversation courante, 
+- Enregistrer en tête de `docs/DECISIONS_TECHNIQUES.md` les décisions techniques durables, de la plus récente à la plus ancienne, avec la date-heure-min-sec, le contexte, la décision, sa justification et ses conséquences.
+- Ne pas enregistrer les simples commandes exécutées, nombres de tests ou validations intermédiaires dans le registre des décisions ; conserver uniquement la dernière validation significative dans le fichier de l'étape active.
+- En cas de contradiction entre `PLAN.md` et une instruction explicite donnée par l'utilisateur dans la conversation courante,
   l'instruction explicite la plus récente de l'utilisateur prévaut ; présenter la contradiction à l'utilisateur pour valider l'intention
   puis mettre à jour `PLAN.md` pour refléter cette décision.
-- Après chaque étape significative, mettre à jour `PLAN.md` avant de passer à l'étape suivante.
+- Après chaque étape significative, mettre à jour d'abord le fichier de l'étape active, puis `PLAN.md`, avant de passer à l'étape suivante.
