@@ -1,10 +1,45 @@
 import { describe, expect, it } from 'vitest'
+import { Game } from './Game'
 import { PlayerBuilder } from './Player'
+import { Rotation } from './Rotation'
 import { PlayerStatus } from './PlayerStatus'
 import { Session } from './Session'
 import { SessionStatus } from './SessionStatus'
 
 describe('Session', () => {
+  it('calculates the next Rotation order and Game number in its own history', () => {
+    const game = new Game({
+      number: 5,
+      courtId: 'court-1',
+      teamAId: 'team-a',
+      teamBId: 'team-b',
+      scoreTeamA: null,
+      scoreTeamB: null,
+      winnerTeam: null,
+      loserTeam: null
+    })
+    const session = new Session('location-1', 1, null, null, undefined,
+      undefined, 'session-1')
+    const rotations = [
+      new Rotation(session.id, 2, [game], []),
+      new Rotation('other-session', 9, [new Game({
+        number: 99,
+        courtId: 'court-2',
+        teamAId: 'team-c',
+        teamBId: 'team-d',
+        scoreTeamA: null,
+        scoreTeamB: null,
+        winnerTeam: null,
+        loserTeam: null
+      })], [])
+    ]
+
+    expect(session.getNextRotationOrder(rotations)).toBe(3)
+    expect(session.getNextGameNumber(rotations)).toBe(6)
+    expect(session.getNextRotationOrder([])).toBe(1)
+    expect(session.getNextGameNumber([])).toBe(1)
+  })
+
   it.each(['', 'location-1'])(
     'enforces its location and order invariants for location %j',
     locationId => {
@@ -77,6 +112,7 @@ describe('Session', () => {
 
     const restoredSession = Session.fromJson(session.toJSON())
     expect(restoredSession.status).toBe(SessionStatus.CREATED)
+    expect(restoredSession.startTime).toBeNull()
     expect(restoredSession.attendingPlayers.map(player => player.id))
       .toEqual(players.map(player => player.id))
   })

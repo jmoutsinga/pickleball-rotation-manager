@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import storageService from '../services/storage'
+import gameScoreService from '../services/GameScoreService'
 import {
     Court,
     Game,
@@ -9,8 +10,31 @@ import {
     RotationStatus,
     Session,
     SessionStatus,
-    Team
+    Team,
+    validateSessionGraph
 } from '@/models'
+
+function activeCourtsFor(location, storedCourts) {
+    const courtsByNumber = new Map(
+        storedCourts
+            .filter(court => court.locationId === location.id)
+            .map(court => {
+                const restoredCourt = court instanceof Court
+                    ? court
+                    : Court.fromJson(court)
+                return [restoredCourt.number, restoredCourt]
+            })
+    )
+
+    return Array.from(
+        { length: location.nbCourts },
+        (_, index) => {
+            const number = index + 1
+            return courtsByNumber.get(number) ??
+                new Court(location.id, number)
+        }
+    )
+}
 
 export const useSessionStore = defineStore('session', {
     state: () => ({
@@ -222,21 +246,31 @@ export const useSessionStore = defineStore('session', {
                 player => catalogPlayersById.get(player.id) ?? player
             )
 
-            let courts = storedCourts
-                .filter(court => court.locationId === location.id)
-                .map(court =>
-                    court instanceof Court ? court : Court.fromJson(court)
-                )
+            const allCourts = storedCourts.map(court =>
+                court instanceof Court ? court : Court.fromJson(court)
+            )
+            const courts = activeCourtsFor(location, allCourts)
 
-            if (!courts.length) {
-                courts = Array.from(
-                    { length: location.nbCourts },
-                    (_, index) => new Court(location.id, index + 1)
-                )
+            const sessionRotations = rotations.filter(
+                candidate => candidate.sessionId === session.id
+            )
+
+            if (sessionRotations.length) {
+                validateSessionGraph({
+                    location,
+                    session,
+                    rotations: sessionRotations,
+                    courts: allCourts,
+                    teams: storedTeams
+                })
             }
 
-            let rotation = rotations.find(
-                candidate => candidate.sessionId === session.id
+            let rotation = sessionRotations.reduce(
+                (current, candidate) =>
+                    !current || candidate.order > current.order
+                        ? candidate
+                        : current,
+                null
             )
 
             let teams = storedTeams
@@ -244,7 +278,11 @@ export const useSessionStore = defineStore('session', {
             if (!rotation) {
                 teams = courts.flatMap(() => [new Team(), new Team()])
 
+                const firstGameNumber =
+                    session.getNextGameNumber(rotations)
+
                 const games = courts.map((court, index) => new Game({
+                    number: firstGameNumber + index,
                     courtId: court.id,
                     teamAId: teams[index * 2].id,
                     teamBId: teams[index * 2 + 1].id,
@@ -260,7 +298,7 @@ export const useSessionStore = defineStore('session', {
 
                 rotation = new Rotation(
                     session.id,
-                    1,
+                    session.getNextRotationOrder(rotations),
                     games,
                     [...players]
                 )
@@ -368,22 +406,17 @@ export const useSessionStore = defineStore('session', {
             this.session.updateAttendingPlayers(attendingPlayers)
             this.session.start(at)
 
-            const storedCourts = storageService.getCourts()
-            let courts = storedCourts
-                .filter(court => court.locationId === this.location.id)
-                .map(court =>
-                    court instanceof Court ? court : Court.fromJson(court)
-                )
-
-            if (!courts.length) {
-                courts = Array.from(
-                    { length: this.location.nbCourts },
-                    (_, index) => new Court(this.location.id, index + 1)
-                )
-            }
+            const courts = activeCourtsFor(
+                this.location,
+                storageService.getCourts()
+            )
 
             const teams = courts.flatMap(() => [new Team(), new Team()])
+            const storedRotations = storageService.getRotations()
+            const firstGameNumber =
+                this.session.getNextGameNumber(storedRotations)
             const games = courts.map((court, index) => new Game({
+                number: firstGameNumber + index,
                 courtId: court.id,
                 teamAId: teams[index * 2].id,
                 teamBId: teams[index * 2 + 1].id,
@@ -394,7 +427,7 @@ export const useSessionStore = defineStore('session', {
             }))
             const rotation = new Rotation(
                 this.session.id,
-                1,
+                this.session.getNextRotationOrder(storedRotations),
                 games,
                 [...attendingPlayers]
             )
@@ -409,11 +442,67 @@ export const useSessionStore = defineStore('session', {
             this.sessions = storageService.getSessions()
         },
 
+        startRotation(at = new Date()) {
+            if (!this.rotation) {
+                throw new Error('No rotation is loaded')
+            }
+
+            this.rotation.start(at)
+            storageService.saveSessionGraph(this)
+        },
+
+        startRotationScoring() {
+            if (!this.rotation) {
+                throw new Error('No rotation is loaded')
+            }
+
+            this.rotation.startScoring()
+            storageService.saveSessionGraph(this)
+        },
+
+        updateGameScore({ gameId, scoreTeamA, scoreTeamB }) {
+            if (!this.rotation) {
+                throw new Error('No rotation is loaded')
+            }
+
+            const game = gameScoreService.updateScore({
+                rotation: this.rotation,
+                gameId,
+                scoreTeamA,
+                scoreTeamB
+            })
+            storageService.saveSessionGraph(this)
+            return game
+        },
+
+        designateGameWinner({ gameId, winnerTeamId }) {
+            if (!this.rotation) {
+                throw new Error('No rotation is loaded')
+            }
+
+            const game = gameScoreService.designateWinner({
+                rotation: this.rotation,
+                gameId,
+                winnerTeamId
+            })
+            storageService.saveSessionGraph(this)
+            return game
+        },
+
+        finishRotation(at = new Date()) {
+            if (!this.rotation) {
+                throw new Error('No rotation is loaded')
+            }
+
+            this.rotation.finish(at)
+            storageService.saveSessionGraph(this)
+        },
+
         setCourts(numCourts) {
             if (this.rotation?.status !== RotationStatus.CREATED) return
 
             const locationBuilder = new LocationBuilder()
-                .withName('default')
+                .withName(this.location?.name ?? 'default')
                 .withDescription(this.location?.description ?? '')
                 .withNbCourts(numCourts)
 
@@ -423,9 +512,9 @@ export const useSessionStore = defineStore('session', {
 
             const location = locationBuilder.build()
 
-            const courts = Array.from(
-                { length: numCourts },
-                (_, index) => new Court(location.id, index + 1)
+            const courts = activeCourtsFor(
+                location,
+                storageService.getCourts()
             )
 
             const teams = courts.flatMap(() => [
@@ -433,7 +522,13 @@ export const useSessionStore = defineStore('session', {
                 new Team()
             ])
 
+            const historicalRotations = storageService.getRotations()
+                .filter(rotation => rotation.id !== this.rotation.id)
+            const firstGameNumber =
+                this.session.getNextGameNumber(historicalRotations)
+
             const games = courts.map((court, index) => new Game({
+                number: firstGameNumber + index,
                 courtId: court.id,
                 teamAId: teams[index * 2].id,
                 teamBId: teams[index * 2 + 1].id,

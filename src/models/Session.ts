@@ -1,5 +1,6 @@
 import { Player, PlayerBuilder, type PlayerJson } from './Player'
 import { PlayerStatus } from './PlayerStatus'
+import type { Rotation } from './Rotation'
 import { SessionStatus } from './SessionStatus'
 
 export interface SessionJson {
@@ -97,11 +98,29 @@ export class Session {
     this.endTime = at
   }
 
+  getNextRotationOrder(rotations: readonly Rotation[]): number {
+    return this.rotationsFromThisSession(rotations).reduce(
+      (nextOrder, rotation) => Math.max(nextOrder, rotation.order + 1),
+      1
+    )
+  }
+
+  getNextGameNumber(rotations: readonly Rotation[]): number {
+    return this.rotationsFromThisSession(rotations).reduce(
+      (nextNumber, rotation) => rotation.games.reduce(
+        (rotationNextNumber, game) =>
+          Math.max(rotationNextNumber, game.number + 1),
+        nextNumber
+      ),
+      1
+    )
+  }
+
   static fromJson(json: SessionJson): Session {
     return new Session(
       json.locationId,
       json.order,
-      json.startTime ? new Date(json.startTime) : new Date(),
+      json.startTime ? new Date(json.startTime) : null,
       json.endTime ? new Date(json.endTime) : null,
       json.status || SessionStatus.STARTED,
       new Map(Object.entries(json.playerWaitingTimes || {})),
@@ -131,5 +150,11 @@ export class Session {
     }
 
     return [...players]
+  }
+
+  private rotationsFromThisSession(
+    rotations: readonly Rotation[]
+  ): readonly Rotation[] {
+    return rotations.filter(rotation => rotation.sessionId === this.id)
   }
 }
