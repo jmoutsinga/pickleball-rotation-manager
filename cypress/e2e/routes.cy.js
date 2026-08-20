@@ -1,5 +1,3 @@
-/* global cy, describe, expect, it */
-
 const routes = [
   {
     path: '/',
@@ -66,10 +64,14 @@ describe('Application routes', () => {
     })
   })
 
-  it('redirects to Home when parameters are invalid for an identified route', () => {
+  it('shows Not Found for an invalid identified route and links back Home', () => {
     cy.visit('/manage/unknown-location/unknown-session', {
       failOnStatusCode: false
     })
+
+    cy.url().should('match', /\/not-found$/)
+    cy.contains('h1', '404 - Page Not Found').should('be.visible')
+    cy.contains('a', 'Back to Home').click()
 
     cy.url().should('eq', Cypress.config().baseUrl + '/')
     cy.contains('h1', 'Pickleball Training Session Manager').should('be.visible')
@@ -421,7 +423,8 @@ describe('Application routes', () => {
     cy.get('.create-entity-card').click()
     cy.get('#location-form-name').type('Westside Club')
     cy.get('#location-form-description').type('Outdoor courts')
-    cy.get('#location-form-nb-courts').clear().type('2')
+    cy.get('#location-form-nb-courts').clear()
+    cy.get('#location-form-nb-courts').type('2')
     cy.get('.create-location-submit').click()
 
     cy.get('#location-card-location-1')
@@ -474,7 +477,9 @@ describe('Application routes', () => {
         toggle[0],
         '::before'
       ).transform
-    }).check().should(toggle => {
+    })
+    cy.get('#show-deleted-players').check()
+    cy.get('#show-deleted-players').should(toggle => {
       const style = getComputedStyle(toggle[0])
       const checkedThumbTransform = getComputedStyle(
         toggle[0],
@@ -505,7 +510,8 @@ describe('Application routes', () => {
       .as('playerCard')
       .should('have.class', 'player-card--selected')
     cy.get('@playerCard').find('.player-card-edit').click()
-    cy.get('#player-form-name').clear().type('Alicia')
+    cy.get('#player-form-name').clear()
+    cy.get('#player-form-name').type('Alicia')
     cy.get('.edit-player-submit').click()
 
     cy.contains('.player-card', 'alicia')

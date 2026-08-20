@@ -183,6 +183,10 @@ export const useSessionStore = defineStore('session', {
                         `Session "${sessionId}" does not belong to location "${locationId}"`
                     )
                 }
+
+                if (session.status === SessionStatus.FINISHED) {
+                    throw new Error(`Session "${sessionId}" is finished`)
+                }
             } else {
                 location = locations.find(
                     candidate => candidate.name === 'default'

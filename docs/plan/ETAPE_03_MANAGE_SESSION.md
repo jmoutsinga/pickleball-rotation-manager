@@ -1,8 +1,9 @@
 # Étape 3 — Modèle, participants et structure de Manage Session
 
-- État : **En cours — prochaine tranche 3.17**.
+- État : **En cours — prochaine tranche 3.19**.
 - Attendu fonctionnel : [`ATTENDU_FONCTIONNEL.md`](../ATTENDU_FONCTIONNEL.md).
 - Tableau de bord : [`PLAN.md`](../../PLAN.md).
+- Dernière validation significative : **2026-08-20 13:50:23** — type-check, lint incluant Cypress, 254 tests Vitest, 17 scénarios Cypress, `git diff --check` et build Vite réussis après clôture de 3.18.1.
 
 ## Plan canonique
 
@@ -25,13 +26,27 @@
 14. [x] Compléter `Game` avec son numéro dans la Session.
 15. [x] Ajouter les opérations métier de numérotation des Sessions, Rotations et Games.
 16. [x] Définir les invariants et transitions autorisées.
-17. [ ] Charger et valider Location et Session depuis la route.
-18. [ ] Traiter une Session inexistante, incohérente ou terminée.
+17. [x] Charger et valider Location et Session depuis la route.
+18. [x] Traiter une Session inexistante, incohérente ou terminée.
 19. [ ] Afficher `Location.name # Session.order` autour de la phase de préparation et de la phase démarrée.
 20. [ ] Extraire `RotationCard`, `CourtCard`, `GameCard`, `TeamCard` et `OffCourtPlayers`.
 21. [ ] Construire un Game par Court.
 22. [ ] Garantir la persistance et la restauration du graphe complet.
 23. [ ] Valider l'ensemble de l'étape par TDD, Cypress et la chaîne de build ; les miroirs Playwright restent planifiés en 6.12.
+
+### Tranche 3.18 — traitement des routes invalides
+
+- [x] Ajouter une route catch-all et une page 404 avec un lien nommé vers `HomeView`.
+- [x] Rediriger vers la page 404 lorsqu’une Location ou une Session identifiée est absente, incohérente ou rattachée à une autre Location.
+- [x] Refuser explicitement le chargement d’une Session `FINISHED` et rediriger vers la page 404.
+- [x] Couvrir la vue, le routeur, le store et le parcours navigateur par des tests ciblés.
+
+### Ajustement 3.18.1 — intégrer Cypress au lint du build
+
+- [x] Installer une version d’`eslint-plugin-cypress` compatible avec ESLint 8 et configurer son environnement uniquement pour `cypress/**/*.js`.
+- [x] Retirer les déclarations globales locales devenues redondantes de `routes.cy.js`.
+- [x] Étendre `npm run lint` au dossier `cypress` afin que `prebuild` et `build` analysent les tests E2E.
+- [x] Vérifier le lint isolé de `routes.cy.js`, puis la chaîne complète de build.
 
 
 ## Découpage détaillé historique

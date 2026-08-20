@@ -16,7 +16,7 @@
     "test:e2e:open": "start-server-and-test serve:test http-get://127.0.0.1:4173 cypress:open",
     "prebuild": "npm run type-check && npm run lint && npm run test:unit && npm run test:e2e",
     "build": "vite build",
-    "lint": "eslint --ext .js,.ts,.vue src vite.config.mjs"
+    "lint": "eslint --ext .js,.ts,.vue src cypress vite.config.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^12.9.0",
@@ -32,6 +32,7 @@
     "@vue/test-utils": "^2.4.11",
     "cypress": "^15.20.1",
     "eslint": "^8.57.0",
+    "eslint-plugin-cypress": "3.6.0",
     "eslint-plugin-vue": "^9.33.0",
     "happy-dom": "^20.11.2",
     "start-server-and-test": "^3.0.12",

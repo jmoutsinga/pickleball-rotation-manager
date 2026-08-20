@@ -70,7 +70,7 @@ describe('router', () => {
     expect(ensureSession).not.toHaveBeenCalled()
   })
 
-  it('redirects to home if ensureSession fails in the identified guard', async () => {
+  it('redirects to not found if ensureSession fails in the identified guard', async () => {
     ensureSession.mockRejectedValue(new Error('Session not found'))
 
     const route = router.resolve({
@@ -84,10 +84,10 @@ describe('router', () => {
 
     const result = await guard(route)
 
-    expect(result).toEqual({ name: 'home' })
+    expect(result).toEqual({ name: 'notFound' })
   })
 
-  it('redirects to home if parameters are invalid', async () => {
+  it('redirects to not found if parameters are invalid', async () => {
     const guard = router.resolve({
       name: 'manageSession',
       params: { locationId: 'l', sessionId: 's' }
@@ -100,6 +100,14 @@ describe('router', () => {
       }
     })
 
-    expect(result).toEqual({ name: 'home' })
+    expect(result).toEqual({ name: 'notFound' })
+  })
+
+  it('resolves unknown URLs to the not-found route', () => {
+    const route = router.resolve('/unknown/path')
+
+    expect(route.name).toBe('notFoundCatchAll')
+    expect(route.params.pathMatch).toEqual(['unknown', 'path'])
+    expect(route.matched.at(-1).redirect).toEqual({ name: 'notFound' })
   })
 })

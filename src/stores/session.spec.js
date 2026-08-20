@@ -365,6 +365,75 @@ describe('useSessionStore', () => {
     )
   })
 
+  it('refuses an identified location that does not exist', async () => {
+    const session = new Session('unknown-location', 1)
+    localStorage.setItem(
+      'pickleball_sessions',
+      JSON.stringify([session])
+    )
+    const store = useSessionStore()
+
+    await expect(store.ensureSession({
+      locationId: 'unknown-location',
+      sessionId: session.id
+    })).rejects.toThrow(
+      'Location "unknown-location" does not exist'
+    )
+  })
+
+  it('refuses an identified session that does not exist', async () => {
+    const location = new LocationBuilder()
+      .withId('location-1')
+      .withName('Central Club')
+      .withNbCourts(2)
+      .build()
+    localStorage.setItem(
+      'pickleball_locations',
+      JSON.stringify([location])
+    )
+    const store = useSessionStore()
+
+    await expect(store.ensureSession({
+      locationId: location.id,
+      sessionId: 'unknown-session'
+    })).rejects.toThrow(
+      'Session "unknown-session" does not exist'
+    )
+  })
+
+  it('refuses to load an identified finished session', async () => {
+    const location = new LocationBuilder()
+      .withId('location-1')
+      .withName('Central Club')
+      .withNbCourts(2)
+      .build()
+    const session = new Session(
+      location.id,
+      1,
+      new Date('2026-08-20T10:00:00.000Z'),
+      new Date('2026-08-20T11:00:00.000Z'),
+      SessionStatus.FINISHED,
+      new Map(),
+      'session-1'
+    )
+    localStorage.setItem(
+      'pickleball_locations',
+      JSON.stringify([location])
+    )
+    localStorage.setItem(
+      'pickleball_sessions',
+      JSON.stringify([session])
+    )
+    const store = useSessionStore()
+
+    await expect(store.ensureSession({
+      locationId: location.id,
+      sessionId: session.id
+    })).rejects.toThrow(
+      `Session "${session.id}" is finished`
+    )
+  })
+
   it('refuses to create a second open session for one location', () => {
     const startedSession = new Session('location-1', 1)
     localStorage.setItem(

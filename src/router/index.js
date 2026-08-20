@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import ManageSession from '../views/ManageSession.vue'
 import ManagePlayers from '../views/ManagePlayers.vue'
+import NotFoundView from '../views/NotFoundView.vue'
 import { useSessionStore } from '@/stores/session'
 
 async function ensureSessionGuard() {
@@ -18,7 +19,7 @@ async function ensureIdentifiedSessionGuard(to) {
   const { locationId, sessionId } = to.params
 
   if (typeof locationId !== 'string' || typeof sessionId !== 'string') {
-    return { name: 'home' }
+    return { name: 'notFound' }
   }
 
   const sessionStore = useSessionStore()
@@ -26,7 +27,7 @@ async function ensureIdentifiedSessionGuard(to) {
     await sessionStore.ensureSession({ locationId, sessionId })
   } catch (error) {
     console.error('Identified session guard error:', error)
-    return { name: 'home' }
+    return { name: 'notFound' }
   }
 }
 
@@ -53,6 +54,16 @@ const routes = [
     path: '/manage-players',
     name: 'managePlayers',
     component: ManagePlayers
+  },
+  {
+    path: '/not-found',
+    name: 'notFound',
+    component: NotFoundView
+  },
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'notFoundCatchAll',
+    redirect: { name: 'notFound' }
   }
 ]
 

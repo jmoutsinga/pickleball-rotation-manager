@@ -13,11 +13,11 @@ Le cahier des charges détaillé, y compris la machine à états Session/Rotatio
 ### Situation actuelle
 
 - Étape active : **3 — Modèle, participants et structure de Manage Session**.
-- Tranche active : **3.17 — Charger et valider Location et Session depuis la route**.
+- Tranche active : **3.19 — Afficher l’identité de la Location et de la Session**.
 - État de la tranche : **à démarrer**.
-- Prochaine action : lire `locationId` et `sessionId`, charger les entités persistées correspondantes et vérifier leur relation.
-- Dernière tranche terminée : **3.20 — scoring du domaine et découpage de la persistance**.
-- Dernière validation applicative complète : **2026-08-20 03:51:13** — type-check, lint, 249 tests Vitest, 17 scénarios Cypress, `git diff --check` et build Vite réussis.
+- Prochaine action : afficher `Location.name # Session.order` autour de la préparation et de la phase démarrée.
+- Dernière tranche terminée : **3.18.1 — intégration de Cypress au lint du build**.
+- Dernière validation applicative complète : **2026-08-20 13:50:23** — type-check, lint incluant Cypress, 254 tests Vitest, 17 scénarios Cypress, `git diff --check` et build Vite réussis.
 - Éléments anticipés : la persistance/restauration du graphe de 3.22 et les affectations manuelles de 4.4 sont partiellement implémentées.
 - Marqueurs : `[x]` terminée ; `[==>]` en cours ; `[ ]` à faire.
 
@@ -34,14 +34,11 @@ Le cahier des charges détaillé, y compris la machine à états Session/Rotatio
 | 6 | Calcul de la Rotation suivante et modernisation de l’outillage | À faire | [Étape 6](docs/plan/ETAPE_06_ROTATION_SUIVANTE.md) |
 | 7 | SQLite | À faire | [Étape 7](docs/plan/ETAPE_07_SQLITE.md) |
 
-### Tranche active — 3.17
+### Tranche active — 3.19
 
-- [ ] Charger la Location désignée par `locationId`.
-- [ ] Charger la Session désignée par `sessionId`.
-- [ ] Vérifier que la Session appartient à la Location demandée.
-- [ ] Couvrir le chargement identifié et sa validation par des tests ciblés.
-
-La gestion d’une Session inexistante, incohérente ou terminée appartient à la tranche suivante, **3.18**.
+- [ ] Afficher le nom de la Location et l’ordre de la Session pendant la préparation `CREATED`.
+- [ ] Conserver cette identité visible pendant la phase `STARTED`.
+- [ ] Couvrir les deux rendus par des tests de composant et un parcours navigateur ciblé.
 
 ### Politique documentaire
 
