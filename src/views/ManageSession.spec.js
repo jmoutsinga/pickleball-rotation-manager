@@ -6,6 +6,8 @@ import { createTestingPinia } from '@pinia/testing'
 import {
   LocationBuilder,
   PlayerBuilder,
+  Rotation,
+  RotationStatus,
   Session,
   SessionStatus
 } from '@/models'
@@ -14,17 +16,44 @@ import ManageSession from './ManageSession.vue'
 
 const SessionFormStub = {
   name: 'SessionForm',
-  props: ['locationName', 'sessionOrder', 'availablePlayers', 'selectedPlayerIds'],
-  emits: ['selection-change', 'start'],
+  props: ['availablePlayers', 'selectedPlayerIds'],
+  emits: ['selection-change'],
   template: `
     <section class="session-form-stub">
       <button class="change" @click="$emit('selection-change', ['player-2'])">Change</button>
-      <button class="start" @click="$emit('start')">Start</button>
     </section>
   `
 }
 
-function mountView(session, players) {
+const RotationCardStub = {
+  name: 'RotationCard',
+  props: [
+    'courts',
+    'waitingPlayers',
+    'rotationOrder',
+    'rotationStatus',
+    'canStartRotation',
+    'canPlanNextRotation'
+  ],
+  emits: [
+    'move-player',
+    'remove-player',
+    'start-rotation',
+    'stop-rotation',
+    'next-rotation'
+  ],
+  template: `
+    <section class="rotation-card-stub">
+      <button class="move-player" @click="$emit('move-player', { playerId: 'player-1', targetTeamId: 'team-a' })">Move</button>
+      <button class="remove-player" @click="$emit('remove-player', 'player-1')">Remove</button>
+      <button class="start-rotation" @click="$emit('start-rotation')">Start Rotation</button>
+      <button class="stop-rotation" @click="$emit('stop-rotation')">Stop Rotation</button>
+      <button class="next-rotation" @click="$emit('next-rotation')">Next Rotation</button>
+    </section>
+  `
+}
+
+function mountView(session, players, rotation = null) {
   const location = new LocationBuilder()
     .withId('location-1')
     .withName('Central Club')
@@ -37,7 +66,7 @@ function mountView(session, players) {
       session: {
         location,
         session,
-        rotation: null,
+        rotation,
         courts: [],
         teams: [],
         players,
@@ -48,7 +77,10 @@ function mountView(session, players) {
   const wrapper = mount(ManageSession, {
     global: {
       plugins: [pinia],
-      stubs: { SessionForm: SessionFormStub }
+      stubs: {
+        SessionForm: SessionFormStub,
+        RotationCard: RotationCardStub
+      }
     }
   })
 
@@ -68,13 +100,18 @@ describe('ManageSession attendee preparation', () => {
     const { wrapper } = mountView(session, players)
     const form = wrapper.getComponent(SessionFormStub)
 
-    expect(form.props('locationName')).toBe('Central Club')
-    expect(form.props('sessionOrder')).toBe(3)
     expect(form.props('availablePlayers')).toEqual(players)
     expect(form.props('selectedPlayerIds'))
       .toEqual(players.slice(0, 2).map(player => player.id))
     expect(wrapper.find('.court-setup').exists()).toBe(false)
     expect(wrapper.find('.courts-container').exists()).toBe(false)
+    expect(wrapper.get('.session-identity').text())
+      .toBe('Central Club # Session 3')
+    expect(wrapper.get('.manage-session__header').classes())
+      .toContain('manage-session__header--sticky')
+    expect(wrapper.get('.manage-session__start').attributes('disabled'))
+      .toBeDefined()
+    expect(wrapper.findAll('h2')).toHaveLength(1)
   })
 
   it('persists selection events and starts through the session store', async () => {
@@ -84,13 +121,12 @@ describe('ManageSession attendee preparation', () => {
         .withName(`player-${index + 1}`)
         .build()
     )
-    const { wrapper, store } = mountView(
-      new Session('location-1', 1),
-      players
-    )
+    const session = new Session('location-1', 1)
+    session.updateAttendingPlayers(players)
+    const { wrapper, store } = mountView(session, players)
 
     await wrapper.get('.change').trigger('click')
-    await wrapper.get('.start').trigger('click')
+    await wrapper.get('.manage-session__start').trigger('click')
 
     expect(store.updateAttendingPlayers).toHaveBeenCalledWith(['player-2'])
     expect(store.startSession).toHaveBeenCalledOnce()
@@ -113,14 +149,41 @@ describe('ManageSession attendee preparation', () => {
       'session-1',
       players
     )
-    const { wrapper } = mountView(startedSession, players)
-    wrapper.vm.courtsInitialized = true
-    await wrapper.vm.$nextTick()
+    const rotation = new Rotation(
+      startedSession.id,
+      2,
+      [],
+      players,
+      'rotation-2',
+      RotationStatus.CREATED
+    )
+    const { wrapper, store } = mountView(startedSession, players, rotation)
+    const rotationCard = wrapper.getComponent(RotationCardStub)
 
     expect(wrapper.findComponent(SessionFormStub).exists()).toBe(false)
-    expect(wrapper.get('.session-identity').text()).toBe('Central Club # Session 1')
     expect(wrapper.get('h1').text()).toBe('Training Session Manager')
-    expect(wrapper.find('.court-setup').exists()).toBe(false)
-    expect(wrapper.find('.add-player-form').exists()).toBe(false)
+    expect(wrapper.get('.session-identity').text())
+      .toBe('Central Club # Session 1')
+    expect(wrapper.find('.manage-session__start').exists()).toBe(false)
+    expect(wrapper.findAll('h2')).toHaveLength(1)
+    expect(rotationCard.props('rotationOrder')).toBe(2)
+    expect(rotationCard.props('rotationStatus')).toBe(RotationStatus.CREATED)
+    expect(rotationCard.props('canStartRotation')).toBe(false)
+    expect(rotationCard.props('canPlanNextRotation')).toBe(false)
+
+    await wrapper.get('.move-player').trigger('click')
+    await wrapper.get('.remove-player').trigger('click')
+    await wrapper.get('.start-rotation').trigger('click')
+    await wrapper.get('.stop-rotation').trigger('click')
+    await wrapper.get('.next-rotation').trigger('click')
+
+    expect(store.movePlayer).toHaveBeenCalledWith({
+      playerId: 'player-1',
+      targetTeamId: 'team-a'
+    })
+    expect(store.removePlayer).toHaveBeenCalledWith('player-1')
+    expect(store.startRotation).toHaveBeenCalledOnce()
+    expect(store.startRotationScoring).toHaveBeenCalledOnce()
+    expect(store.planNextRotation).toHaveBeenCalledOnce()
   })
 })

@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import storageService from '../services/storage'
 import gameScoreService from '../services/GameScoreService'
+import rotationService from '../services/RotationService'
+import { ApplicationError, ErrorCode } from '@/errors/ApplicationError'
 import {
     Court,
     Game,
@@ -11,6 +13,7 @@ import {
     Session,
     SessionStatus,
     Team,
+    isRotationLineupComplete,
     validateSessionGraph
 } from '@/models'
 
@@ -36,6 +39,13 @@ function activeCourtsFor(location, storedCourts) {
     )
 }
 
+function usableCourtsFor(session, location, courts) {
+    return courts.slice(
+        0,
+        session.getUsableCourtCount(location.nbCourts)
+    )
+}
+
 export const useSessionStore = defineStore('session', {
     state: () => ({
         location: null,
@@ -55,20 +65,30 @@ export const useSessionStore = defineStore('session', {
                 const game = state.rotation.games.find(
                     candidate => candidate.courtId === court.id
                 )
+                const teamA = state.teams.find(
+                    team => team.id === game?.teamAId
+                )
+                const teamB = state.teams.find(
+                    team => team.id === game?.teamBId
+                )
+                const isUsable = Boolean(game && teamA && teamB)
 
                 return {
                     id: court.id,
                     number: court.number,
-                    teams: {
-                        A: state.teams.find(team => team.id === game?.teamAId),
-                        B: state.teams.find(team => team.id === game?.teamBId)
-                    }
+                    isUsable,
+                    teams: isUsable ? { A: teamA, B: teamB } : null
                 }
             })
         },
 
         getWaitingPlayers: state =>
             state.rotation?.waitingPlayers ?? [],
+
+        canStartRotation: state => Boolean(
+            state.rotation &&
+            isRotationLineupComplete(state.rotation, state.teams)
+        ),
 
         getTeamById: state => teamId =>
             state.teams.find(team => team.id === teamId) ?? null,
@@ -152,9 +172,7 @@ export const useSessionStore = defineStore('session', {
             const catalogPlayers = storageService.getPlayers()
             const locations = storageService.getLocations()
             const sessions = storageService.getSessions()
-            const rotations = storageService.getRotations()
             const storedCourts = storageService.getCourts()
-            const storedTeams = storageService.getTeams()
 
             let location
             let session
@@ -167,7 +185,11 @@ export const useSessionStore = defineStore('session', {
                 )
 
                 if (!location) {
-                    throw new Error(`Location "${locationId}" does not exist`)
+                    throw new ApplicationError(
+                        ErrorCode.LOCATION_NOT_FOUND,
+                        `Location "${locationId}" does not exist`,
+                        { httpStatus: 404 }
+                    )
                 }
 
                 session = sessions.find(
@@ -175,17 +197,27 @@ export const useSessionStore = defineStore('session', {
                 )
 
                 if (!session) {
-                    throw new Error(`Session "${sessionId}" does not exist`)
+                    throw new ApplicationError(
+                        ErrorCode.SESSION_NOT_FOUND,
+                        `Session "${sessionId}" does not exist`,
+                        { httpStatus: 404 }
+                    )
                 }
 
                 if (session.locationId !== location.id) {
-                    throw new Error(
-                        `Session "${sessionId}" does not belong to location "${locationId}"`
+                    throw new ApplicationError(
+                        ErrorCode.SESSION_LOCATION_MISMATCH,
+                        `Session "${sessionId}" does not belong to location "${locationId}"`,
+                        { httpStatus: 404 }
                     )
                 }
 
                 if (session.status === SessionStatus.FINISHED) {
-                    throw new Error(`Session "${sessionId}" is finished`)
+                    throw new ApplicationError(
+                        ErrorCode.SESSION_FINISHED,
+                        `Session "${sessionId}" is finished`,
+                        { httpStatus: 404 }
+                    )
                 }
             } else {
                 location = locations.find(
@@ -250,7 +282,13 @@ export const useSessionStore = defineStore('session', {
                 player => catalogPlayersById.get(player.id) ?? player
             )
 
-            const allCourts = storedCourts.map(court =>
+            const migratedGraph = storageService.migrateSessionUsableCourts({
+                location,
+                session
+            })
+            const rotations = migratedGraph.rotations
+            const storedTeams = migratedGraph.teams
+            const allCourts = migratedGraph.courts.map(court =>
                 court instanceof Court ? court : Court.fromJson(court)
             )
             const courts = activeCourtsFor(location, allCourts)
@@ -260,13 +298,21 @@ export const useSessionStore = defineStore('session', {
             )
 
             if (sessionRotations.length) {
-                validateSessionGraph({
-                    location,
-                    session,
-                    rotations: sessionRotations,
-                    courts: allCourts,
-                    teams: storedTeams
-                })
+                try {
+                    validateSessionGraph({
+                        location,
+                        session,
+                        rotations: sessionRotations,
+                        courts: allCourts,
+                        teams: storedTeams
+                    })
+                } catch (error) {
+                    throw new ApplicationError(
+                        ErrorCode.SESSION_GRAPH_INVALID,
+                        `Session "${session.id}" graph is invalid`,
+                        { cause: error }
+                    )
+                }
             }
 
             let rotation = sessionRotations.reduce(
@@ -280,12 +326,17 @@ export const useSessionStore = defineStore('session', {
             let teams = storedTeams
 
             if (!rotation) {
-                teams = courts.flatMap(() => [new Team(), new Team()])
+                const usableCourts = usableCourtsFor(
+                    session,
+                    location,
+                    courts
+                )
+                teams = usableCourts.flatMap(() => [new Team(), new Team()])
 
                 const firstGameNumber =
                     session.getNextGameNumber(rotations)
 
-                const games = courts.map((court, index) => new Game({
+                const games = usableCourts.map((court, index) => new Game({
                     number: firstGameNumber + index,
                     courtId: court.id,
                     teamAId: teams[index * 2].id,
@@ -414,12 +465,17 @@ export const useSessionStore = defineStore('session', {
                 this.location,
                 storageService.getCourts()
             )
+            const usableCourts = usableCourtsFor(
+                this.session,
+                this.location,
+                courts
+            )
 
-            const teams = courts.flatMap(() => [new Team(), new Team()])
+            const teams = usableCourts.flatMap(() => [new Team(), new Team()])
             const storedRotations = storageService.getRotations()
             const firstGameNumber =
                 this.session.getNextGameNumber(storedRotations)
-            const games = courts.map((court, index) => new Game({
+            const games = usableCourts.map((court, index) => new Game({
                 number: firstGameNumber + index,
                 courtId: court.id,
                 teamAId: teams[index * 2].id,
@@ -449,6 +505,14 @@ export const useSessionStore = defineStore('session', {
         startRotation(at = new Date()) {
             if (!this.rotation) {
                 throw new Error('No rotation is loaded')
+            }
+            if (
+                this.rotation.status === RotationStatus.CREATED &&
+                !isRotationLineupComplete(this.rotation, this.teams)
+            ) {
+                throw new Error(
+                    'Every Game requires exactly 2 Players in each Team'
+                )
             }
 
             this.rotation.start(at)
@@ -502,6 +566,42 @@ export const useSessionStore = defineStore('session', {
             storageService.saveSessionGraph(this)
         },
 
+        planNextRotation(at = new Date()) {
+            if (!this.rotation) {
+                throw new Error('No rotation is loaded')
+            }
+            if (!this.session) {
+                throw new Error('No session is loaded')
+            }
+
+            const currentRotation = this.rotation
+            currentRotation.finish(at)
+            const nextGames = rotationService.planNextRotation(
+                currentRotation.games
+            )
+
+            storageService.saveSessionGraph(this)
+
+            const storedRotations = storageService.getRotations()
+            this.players.forEach(player =>
+                player.changeStatus(PlayerStatus.AVAILABLE)
+            )
+            const nextRotation = new Rotation(
+                this.session.id,
+                this.session.getNextRotationOrder(storedRotations),
+                nextGames,
+                [...this.players]
+            )
+
+            this.rotation = nextRotation
+            this.teams = []
+
+            storageService.updatePlayers(this.players)
+            storageService.saveSessionGraph(this)
+
+            return nextRotation
+        },
+
         setCourts(numCourts) {
             if (this.rotation?.status !== RotationStatus.CREATED) return
 
@@ -520,8 +620,13 @@ export const useSessionStore = defineStore('session', {
                 location,
                 storageService.getCourts()
             )
+            const usableCourts = usableCourtsFor(
+                this.session,
+                location,
+                courts
+            )
 
-            const teams = courts.flatMap(() => [
+            const teams = usableCourts.flatMap(() => [
                 new Team(),
                 new Team()
             ])
@@ -531,7 +636,7 @@ export const useSessionStore = defineStore('session', {
             const firstGameNumber =
                 this.session.getNextGameNumber(historicalRotations)
 
-            const games = courts.map((court, index) => new Game({
+            const games = usableCourts.map((court, index) => new Game({
                 number: firstGameNumber + index,
                 courtId: court.id,
                 teamAId: teams[index * 2].id,

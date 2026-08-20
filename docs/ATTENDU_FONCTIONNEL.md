@@ -74,11 +74,18 @@ La route devient ainsi partageable et rechargeable sans dépendre d’une sélec
 
 - Charger la Location et la Session depuis l’identifiant de route.
 - Vérifier que la Session est liée à la Location et qu'elle est dans l'état 'STARTED'.
+- Avant validation et affichage, migrer les Sessions historiques qui ne respectent pas encore le nombre de Courts utilisables : conserver les Games des premiers Courts, replacer les autres Players hors Court, supprimer les Teams devenues orphelines et renuméroter les Games sans trou.
+- Conserver la page 404 pour les identifiants absents, les relations Location/Session invalides et les Sessions terminées.
+- Pour une erreur interne de migration, de graphe ou de chargement, générer un UUID, journaliser cet UUID avec un code d’erreur stable et rediriger vers `/500`.
+- La page 500 affiche « erreur interne, merci de contacter l'administrateur en indiquant ce code erreur : codeErreur - uuidErreur », permet de copier ce message avec un pictogramme de copie, confirme temporairement par « message copié » et propose « Back to Home ».
 - Si la Session est en état 'FINISHED', afficher une fenêtre modale avec le message 'Cette session est terminée, souhaitez-vous démarrer une nouvelle session ?' :
   - Si oui, créer une nouvelle Session dont session.order est initialisé à max+1 de toutes les sessions de cette location (max(location.sessions.order) + 1) puis rediriger vers la vue ManageSession avec cette nouvelle Session.
   - Si non, fermer la fenêtre modale et rediriger vers la vue Home.
 - Afficher « Training Session Manager » comme titre principal de la vue.
-- Afficher `Location.name # Session order` comme identité de la préparation et de la Session démarrée.
+- Afficher une seule fois `Location.name # Session order` dans l'en-tête sticky de `ManageSession`, pendant la préparation comme après le démarrage.
+- Donner à ce `<h2>` d'identité la même taille que le `<h1>` principal.
+- Pendant la préparation, afficher dans ce même en-tête le bouton « Start Session », désactivé tant que moins de quatre Players participent à la Session.
+- Après démarrage de la Session, afficher `Rotation N° order` dans un `<h3>` de `1.5rem`, au sein d'un second en-tête sticky placé immédiatement sous celui de la Session.
 - Afficher un bouton « New Rotation ».
 - Créer une nouvelle Rotation liée à la Session.
 - Stocker l'horaire de début de la rotation.
@@ -86,13 +93,18 @@ La route devient ainsi partageable et rechargeable sans dépendre d’une sélec
   - un titre "Game #number".
   - une TeamCard A et une TeamCard B.
   - un input dans chaque TeamCard pour la saisie des scores à la fin de la rotation. Ces inputs sont initialement cachés et disabled.
-- Initialiser les Court Cards de cette rotation à partir de `location.nbCourts`.
-- Initialiser les Game Cards de cette rotation de chaque Court avec Game.number = session.getNextGameNumber(). La GameCard contient le bloc Team A vs Team B ainsi que les 2 inputs pour l'enregistrement des scores à la fin de la rotation. Elle a également un titre "Game #1" où #1 est le numéro de la game dans la session.
+- Initialiser les Court Cards de chaque Rotation à partir de tous les Courts physiques de la Location.
+- Déterminer le nombre de Courts utilisables pendant toute la Session avec `min(location.nbCourts, floor(session.attendingPlayers.length / 4))` : 4–7 Players utilisent 1 Court, 8–11 en utilisent 2, 12–15 en utilisent 3, et ainsi de suite.
+- Utiliser toujours les Courts depuis le numéro 1 dans l’ordre croissant. Afficher les Courts physiques suivants sur fond gris, avec la mention « Inutilisé » sous leur nom, sans Game, Team ni possibilité de drag & drop.
+- Initialiser une Game Card uniquement pour chaque Court utilisable de la Rotation avec Game.number = session.getNextGameNumber(). La GameCard contient le bloc Team A vs Team B ainsi que les 2 inputs pour l'enregistrement des scores à la fin de la rotation. Elle a également un titre "Game #1" où #1 est le numéro de la game dans la session.
 - Initialiser la liste des joueurs disponible en récupérant tous les joueurs existant dans la base.
 - Un bouton « Start Rotation » permet de lancer la rotation et le compte à rebours.
   - Ce bouton est visible uniquement quand la rotation est en status 'CREATED' avant le lancement.
+  - Ce bouton reste désactivé tant que chaque Game ne possède pas exactement deux Players dans Team A et deux Players dans Team B.
+  - La même composition complète est validée par le cas d'usage avant toute transition, y compris lors d'un appel direct sans passer par l'interface.
   - Ce bouton passe la rotation en status 'IN_PROGRESS' (matchs en cours).
   - Ce bouton fige toutes les Teams liées à la rotation ainsi que les joueurs présents dans la OffCourtPlayers.
+- Pendant `IN_PROGRESS`, remplacer « Start Rotation » par « Stop Rotation ». En attendant l'implémentation du minuteur, cette commande manuelle passe la Rotation à `SCORING`; elle disparaît après la transition.
 - Changer le titre de la OffCourtPlayers liste suivant le status de la Rotation :
   - Available Players quand la rotation est en status 'CREATED' avant le lancement ;
   - Waiting Players quand la rotation est en status 'IN_PROGRESS' (matchs en cours);
@@ -109,7 +121,7 @@ La route devient ainsi partageable et rechargeable sans dépendre d’une sélec
 - Les input des scores sont disabled tant que le compte à rebours n'est pas terminé.
 - Dès la fin du compte à rebours :
   - les input des scores sont enabled et requis (Autoriser uniquement des entiers entre 0 et 100).
-  - Afficher un bouton « Compute Next Rotation » qui est clickable uniquement lorsque tous les scores ont été saisis.
+  - Afficher un bouton « Next Rotation », désactivé tant que toutes les Games ne sont pas résolues.
 - Lors de son activation, enregistrer :
   - les équipes de chaque terrain ainsi que leur score respectif ;
   - déterminer pour chaque game quelle est la winnerTeam et la looserTeam (la winnerTeam est celle ayant le plus haut score, l'autre team est automatiquement la looserTeam) ;
@@ -117,6 +129,8 @@ La route devient ainsi partageable et rechargeable sans dépendre d’une sélec
   - les joueurs en attente ;
   - l’ordre ou le numéro de rotation ;
   - l'horaire de fin de la rotation.
+- « Next Rotation » valide à nouveau que toutes les Games sont résolues, termine la Rotation courante, puis appelle `RotationService.planNextRotation(currentGames)` avec l'ensemble de ses Games.
+- Dans un premier incrément, `planNextRotation()` retourne une liste vide : la nouvelle Rotation est créée en `CREATED`, avec l'ordre suivant, sans Game et avec tous les participants replacés dans `waitingPlayers`.
 - Calculer la nouvelle affectation de chaque joueur pour la rotation suivante en suivant les règles suivantes :
   - Les joueurs de la winnerTeam sont affectés sur le Court number-1 de la game et les 2 joueurs sont réafectés : Player1 dans la TeamA, Player2 dans la TeamB
   - Les joueurs de la looserTeam sont affectés sur le Court number+1 de la game et les 2 joueurs sont réafectés : Player1 dans la TeamA, Player2 dans la TeamB
@@ -160,10 +174,10 @@ IN_PROGRESS
   │ Minuteur à zéro
   ▼
 SCORING
-  │ Compute Next Rotation
+  │ Next Rotation
   ▼
 STARTED (rotation suivante)
-  │ Compute Next Rotation
+  │ Next Rotation
   ▼
 CREATED
   │ Configuration des éléments de la nouvelle rotation en utilisant les résultats de l'algorithme de réaffectation des joueurs
@@ -182,5 +196,5 @@ FINISHED (session terminée)
 - STARTED : session en status 'STARTED'. Le bouton "New Rotation" permet de lancer la création de la rotation.
 - CREATED : session en status 'STARTED'. Rotation en status 'CREATED'. Affichage de la RotationCard en utilisant les données de la rotation, de la session et de la location. C'est à cette étape que la rotation est configurée : setup des Courts, des Games, de la OffCourtPlayers liste, composition des équipes par drag & drop, équipes modifiables, input scores des GameCards cachés et désactivés. Le bouton "Start Rotation" permet de mettre la rotation en status 'IN_PROGRESS'.
 - IN_PROGRESS : parties en cours, titre du composant OffCourtPlayers renommée en Waiting Players, toutes les informations de la Rotation ne sont plus modifiables. Minuteur démarre. Compte à rebours jusqu'à zero. A la fin du minuteur, la rotation passe automatiquement au status 'SCORING'.
-- SCORING : Les inputs des scores de toutes les Games deviennent visibles et doivent être saisis (requis). La rotation est en status 'SCORING'. Les boutons "Compute Next Rotation" et "End Session" sont disponibles. Le bouton "Compute Next Rotation" permet de passer la rotation en cours du status 'SCORING' au status 'FINISHED', de lancer le calcul de réaffactation des joueurs dans la prochaine rotation, de créer la prochaine rotation (status 'CREATED') en l'initialisant avec le résultat du calcul des réaffectations des joueurs. Puis, d'afficher cette nouvelle rotation dans la page (composant RotationCard rendu à partir de la nouvelle rotation). Le bouton "End Session" permet de mettre la rotation en cours au status 'FINISHED' et de terminer la session (status de la Session passe de 'STARTED' à 'FINISHED').
+- SCORING : Les inputs des scores de toutes les Games deviennent visibles et doivent être saisis (requis). La rotation est en status 'SCORING'. Les boutons "Next Rotation" et "End Session" sont disponibles. Le bouton "Next Rotation" permet de passer la rotation en cours du status 'SCORING' au status 'FINISHED', de lancer le calcul de réaffectation des joueurs dans la prochaine rotation, de créer la prochaine rotation (status 'CREATED') en l'initialisant avec le résultat du calcul des réaffectations des joueurs. Puis, d'afficher cette nouvelle rotation dans la page (composant RotationCard rendu à partir de la nouvelle rotation). Le bouton "End Session" permet de mettre la rotation en cours au status 'FINISHED' et de terminer la session (status de la Session passe de 'STARTED' à 'FINISHED').
 - FINISHED : La session est en status 'FINISHED'. La rotation est en status 'FINISHED'. La rotationCard indique que la rotation est terminée. Un nouveau bouton "New Session" permet de créer une nouvelle session.

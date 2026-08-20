@@ -1,9 +1,9 @@
 # Étape 3 — Modèle, participants et structure de Manage Session
 
-- État : **En cours — prochaine tranche 3.20**.
+- État : **En cours — tranche 3.21 à démarrer**.
 - Attendu fonctionnel : [`ATTENDU_FONCTIONNEL.md`](../ATTENDU_FONCTIONNEL.md).
 - Tableau de bord : [`PLAN.md`](../../PLAN.md).
-- Dernière validation significative : **2026-08-20 19:00:58** — type-check, lint incluant Cypress, 254 tests Vitest, 17 scénarios Cypress, `git diff --check` et build Vite réussis après alignement du titre, de l’identité et de leurs tests.
+- Dernière validation significative : **2026-08-20 22:54:20** — type-check, lint incluant Cypress, 302 tests Vitest, 19 scénarios Cypress, `git diff --check` et build Vite réussis après protection du démarrage par la composition complète de chaque Game.
 
 ## Plan canonique
 
@@ -14,7 +14,7 @@
 4. [x] Adapter Home pour créer ou reprendre la Session ouverte appropriée.
 5. [x] Charger une Session `CREATED` depuis la route sans initialiser l'organisation d'une Rotation.
 6. [x] Créer la carte de sélection accessible des participants.
-7. [x] Créer `SessionForm` avec titre, bouton sticky, grille scrollable et sélection persistée pendant `CREATED`, limitée aux Players `AVAILABLE`.
+7. [x] Créer `SessionForm` avec grille responsive et sélection persistée pendant `CREATED`, limitée aux Players `AVAILABLE`; rendre l’identité et l’action sticky dans le parent `ManageSession`.
 8. [x] Exiger au moins quatre participants puis implémenter atomiquement « Start Session » : figer `attendingPlayers`, dater le démarrage, passer à `STARTED` et créer la première Rotation à partir de ces seuls Players.
 9. [x] Afficher `SessionForm` en `CREATED` et l'organisation de Rotation uniquement en `STARTED`.
 10. [x] Interdire toute modification de l'appartenance à `attendingPlayers` après démarrage et limiter les graphes courants à cette liste.
@@ -29,7 +29,7 @@
 17. [x] Charger et valider Location et Session depuis la route.
 18. [x] Traiter une Session inexistante, incohérente ou terminée.
 19. [x] Afficher le titre de page « Training Session Manager » et l’identité `Location.name # Session order` pendant la préparation et la phase démarrée.
-20. [ ] Extraire `RotationCard`, `CourtCard`, `GameCard`, `TeamCard` et `OffCourtPlayers`.
+20. [x] Extraire `RotationCard`, `CourtCard`, `GameCard`, `TeamCard` et `OffCourtPlayers`.
 21. [ ] Construire un Game par Court.
 22. [ ] Garantir la persistance et la restauration du graphe complet.
 23. [ ] Valider l'ensemble de l'étape par TDD, Cypress et la chaîne de build ; les miroirs Playwright restent planifiés en 6.12.
@@ -54,6 +54,72 @@
 - [x] Afficher l’identité `<h2>` au format `Location.name # Session order` dans `SessionForm` pendant `CREATED`, puis directement dans `ManageSession` pendant `STARTED`.
 - [x] Transmettre `locationName` à `SessionForm` par une prop explicite et couvrir cette frontière avec le stub du test parent.
 - [x] Couvrir les deux états par les tests de composant et vérifier dans Cypress le titre ainsi que l’identité avant et après « Start Session ».
+
+### Tranche 3.20 — extraction des composants de Rotation
+
+- [x] Définir les frontières de présentation sans déplacer les actions Pinia ni modifier le graphe persistant.
+- [x] Extraire `TeamCard` et `OffCourtPlayers` pour rendre les Players et émettre drag, drop et suppression.
+- [x] Extraire `GameCard` comme composition Team A versus Team B, sans anticiper le scoring.
+- [x] Extraire `CourtCard` pour le titre du Court et sa `GameCard`.
+- [x] Extraire `RotationCard` pour l’identité de Session, la configuration des Courts, leur grille et l’état éphémère du drag-and-drop.
+- [x] Réduire `ManageSession` à l’orchestration de `SessionForm`/`RotationCard` et aux actions du store.
+- [x] Couvrir chaque composant par son contrat DOM, ses props et événements, puis valider le parcours navigateur existant sans changement métier.
+
+### Ajustement 3.20.1 — en-tête sticky de RotationCard
+
+- [x] Aligner la structure et le comportement sticky du `<h2>` de `RotationCard` sur l’en-tête de `SessionForm`.
+- [x] Couvrir le contrat de classes dans Vitest et la position calculée dans Cypress après démarrage.
+
+### Ajustement 3.20.2 — Courts utilisables selon les participants
+
+- [x] Calculer le nombre de Courts utilisables avec `min(Location.nbCourts, floor(Session.attendingPlayers.length / 4))` ; les paliers sont donc 4–7 → 1, 8–11 → 2, 12–15 → 3, puis ainsi de suite.
+- [x] Pour chaque Rotation de la Session, créer une Game uniquement sur les Courts utilisables, en prenant toujours les numéros depuis 1 dans l’ordre croissant.
+- [x] Conserver et afficher tous les Courts physiques de la Location ; rendre les Courts excédentaires gris, marqués « Inutilisé » et dépourvus de Game, Team et zone de drag & drop.
+- [x] Faire appliquer le même invariant par le store, la restauration et `validateSessionGraph()` afin qu’une commande directe ne puisse pas utiliser un Court excédentaire.
+- [x] Couvrir les paliers, le plafond physique, l’ordre des Courts, le rendu désactivé et le parcours navigateur avant de reprendre 3.21.
+
+### Ajustement 3.20.3 — migration historique et erreur interne corrélée
+
+- [x] Introduire une migration idempotente des Sessions `STARTED` historiques : garantir les Courts physiques `1..Location.nbCourts`, conserver ou créer exactement une Game sur chaque Court utilisable et supprimer les Games excédentaires.
+- [x] Replacer sans doublon dans `Rotation.waitingPlayers` les participants provenant des Teams supprimées, nettoyer leurs Teams devenues orphelines et renuméroter les Games conservées dans l’ordre Rotation/Court.
+- [x] Valider le graphe réparé en mémoire avant toute écriture, puis utiliser le résultat migré lors de la restauration Pinia.
+- [x] Classifier les erreurs de chargement : ressources ou relation invalides vers 404 ; migration, graphe invalide et erreurs inattendues vers 500 avec `codeErreur` stable et `uuidErreur` généré puis journalisé.
+- [x] Créer une page 500 accessible affichant le message corrélé, un bouton de copie avec icône SVG, une notification `message copié` éphémère et un lien `Back to Home` identique à celui de la 404.
+- [x] Couvrir les contrats par Vitest et Cypress, puis reprendre la tranche 3.21.
+
+### Ajustement 3.20.4 — propriété de l’en-tête de Session
+
+- [x] Rendre dans `ManageSession` l’unique `<h2>` `Location.name # Session order`, dans un en-tête sticky commun aux phases `CREATED` et `STARTED`.
+- [x] Déplacer `Start Session` dans cet en-tête parent, le rendre uniquement pendant `CREATED` et le désactiver tant que moins de quatre participants sont persistés.
+- [x] Retirer de `SessionForm` le titre, le bouton, les props d’identité et l’événement `start`; conserver son brouillon local et `selection-change`.
+- [x] Retirer de `RotationCard` le titre et les props d’identité ; conserver sa composition et son état éphémère de drag-and-drop.
+- [x] Couvrir le nouveau propriétaire de l’en-tête et les contrats enfants simplifiés par Vitest et Cypress avant de reprendre 3.21.
+
+### Ajustement 3.20.5 — en-tête et commandes manuelles de Rotation
+
+- [x] Afficher le titre `Rotation N° {{ rotation.order }}` dans un `<h3>` de `1.5rem` et rendre son en-tête sticky immédiatement sous celui de la Session.
+- [x] Aligner explicitement la taille du `<h2>` d’identité de Session sur celle du `<h1>` de page.
+- [x] Rendre `Start Rotation` uniquement en `CREATED` et émettre une intention de démarrage vers `ManageSession`.
+- [x] Remplacer cette commande par `Stop Rotation` en `IN_PROGRESS` et émettre une intention de passage manuel en `SCORING`; ne rendre aucun de ces boutons en `SCORING`.
+- [x] Réutiliser les actions Pinia existantes `startRotation()` et `startRotationScoring()` afin que le domaine contrôle les transitions et que le graphe soit persisté.
+- [x] Couvrir les trois statuts par Vitest et le parcours `CREATED → IN_PROGRESS → SCORING` par Cypress, puis reprendre 3.21.
+
+### Ajustement 3.20.6 — validation et placeholder de Rotation suivante
+
+- [x] Afficher `Next Rotation` uniquement lorsque la Rotation est en `SCORING` et déléguer l’intention à `ManageSession`.
+- [x] Introduire `RotationService.planNextRotation(currentGames)`; son premier incrément accepte toutes les Games courantes et retourne une nouvelle liste vide.
+- [x] Faire appeler `Rotation.finish()` par l’action Pinia afin de refuser toute Game non résolue et de dater la fin avant le calcul.
+- [x] Persister la Rotation terminée, puis créer la suivante en `CREATED`, avec l’ordre séquentiel, les Games retournées par le service et tous les participants dans `waitingPlayers`.
+- [x] Autoriser uniquement le placeholder structurel « ordre supérieur à 1, `CREATED`, zéro Game, tous les participants en attente » dans `validateSessionGraph()` et empêcher la migration de le remplir automatiquement.
+- [x] Couvrir le service, le store, l’invariant, la migration, les composants et le parcours navigateur, puis reprendre 3.21.
+
+### Ajustement 3.20.7 — composition complète avant démarrage d’une Rotation
+
+- [x] Définir un prédicat de graphe exigeant au moins une Game et exactement deux Players dans chacune de ses deux Teams.
+- [x] Exposer ce prédicat par un getter Pinia réactif et l’utiliser dans `startRotation()` pour protéger les appels directs.
+- [x] Ajouter à `RotationCard` une prop d’éligibilité et désactiver `Start Rotation` tant que la composition n’est pas complète.
+- [x] Conserver `RotationCard` indépendant de Pinia : le composant affiche la décision et émet toujours l’intention, tandis que le store porte l’invariant.
+- [x] Couvrir composition partielle, composition complète, retrait d’un Player et transition refusée/acceptée par Vitest et Cypress, puis reprendre 3.21.
 
 
 ## Découpage détaillé historique

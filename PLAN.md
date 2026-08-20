@@ -13,11 +13,11 @@ Le cahier des charges détaillé, y compris la machine à états Session/Rotatio
 ### Situation actuelle
 
 - Étape active : **3 — Modèle, participants et structure de Manage Session**.
-- Tranche active : **3.20 — Extraire les composants de la Rotation**.
+- Tranche active : **3.21 — construire un Game par Court utilisable**.
 - État de la tranche : **à démarrer**.
-- Prochaine action : extraire `RotationCard`, puis ses composants `CourtCard`, `GameCard`, `TeamCard` et `OffCourtPlayers`, sans changer le comportement métier existant.
-- Dernière tranche terminée : **3.19 — titre de Manage Session et identité de la Location/Session**.
-- Dernière validation applicative complète : **2026-08-20 19:00:58** — type-check, lint incluant Cypress, 254 tests Vitest, 17 scénarios Cypress, `git diff --check` et build Vite réussis après alignement du titre et de l’identité de Manage Session.
+- Prochaine action : construire et numéroter une Game pour chaque Court utilisable de la Rotation, sans créer de Game sur les Courts marqués « Inutilisé ».
+- Dernière tranche terminée : **3.20.7 — composition complète avant démarrage d’une Rotation**.
+- Dernière validation applicative complète : **2026-08-20 22:54:20** — type-check, lint incluant Cypress, 302 tests Vitest, 19 scénarios Cypress, `git diff --check` et build Vite réussis après protection du démarrage par la composition complète de chaque Game.
 - Éléments anticipés : la persistance/restauration du graphe de 3.22 et les affectations manuelles de 4.4 sont partiellement implémentées.
 - Marqueurs : `[x]` terminée ; `[==>]` en cours ; `[ ]` à faire.
 
@@ -34,11 +34,12 @@ Le cahier des charges détaillé, y compris la machine à états Session/Rotatio
 | 6 | Calcul de la Rotation suivante et modernisation de l’outillage | À faire | [Étape 6](docs/plan/ETAPE_06_ROTATION_SUIVANTE.md) |
 | 7 | SQLite | À faire | [Étape 7](docs/plan/ETAPE_07_SQLITE.md) |
 
-### Tranche active — 3.20
+### Tranche active — 3.21
 
-- [ ] Extraire `RotationCard` de `ManageSession` en conservant les données et commandes à la frontière de la vue.
-- [ ] Extraire progressivement `CourtCard`, `GameCard`, `TeamCard` et `OffCourtPlayers` avec des props et événements explicites.
-- [ ] Couvrir chaque frontière de composant sans modifier les règles métier ou le graphe persistant.
+- [ ] Construire une Game pour chaque Court utilisable de la Rotation.
+- [ ] Numéroter les Games à l’échelle de la Session dans l’ordre Rotation puis Court.
+- [ ] Ne créer aucune Game sur les Courts excédentaires marqués « Inutilisé ».
+- [ ] Couvrir la construction, la numérotation et la restauration avant de passer à 3.22.
 
 ### Politique documentaire
 

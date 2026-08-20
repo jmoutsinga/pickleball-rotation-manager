@@ -40,6 +40,43 @@ describe('Session', () => {
     expect(session.getNextGameNumber([])).toBe(1)
   })
 
+  it.each([
+    [0, 0],
+    [3, 0],
+    [4, 1],
+    [7, 1],
+    [8, 2],
+    [11, 2],
+    [12, 3],
+    [15, 3],
+    [16, 4]
+  ])(
+    'makes %i attendee(s) use %i Court(s)',
+    (attendeeCount, expectedCourtCount) => {
+      const session = new Session('location-1', 1)
+      const players = Array.from({ length: attendeeCount }, (_, index) =>
+        new PlayerBuilder().withName(`player-${index + 1}`).build()
+      )
+
+      session.updateAttendingPlayers(players)
+
+      expect(session.getUsableCourtCount(10)).toBe(expectedCourtCount)
+    }
+  )
+
+  it('never uses more Courts than the Location physically owns', () => {
+    const session = new Session('location-1', 1)
+    const players = Array.from({ length: 12 }, (_, index) =>
+      new PlayerBuilder().withName(`player-${index + 1}`).build()
+    )
+
+    session.updateAttendingPlayers(players)
+
+    expect(session.getUsableCourtCount(2)).toBe(2)
+    expect(() => session.getUsableCourtCount(0))
+      .toThrow('Location court count must be a positive integer')
+  })
+
   it.each(['', 'location-1'])(
     'enforces its location and order invariants for location %j',
     locationId => {

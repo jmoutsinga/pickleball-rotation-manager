@@ -77,6 +77,202 @@ describe('Application routes', () => {
     cy.contains('h1', 'Pickleball Training Session Manager').should('be.visible')
   })
 
+  it('migrates a legacy Session with excess Court Games while loading it', () => {
+    const players = Array.from({ length: 4 }, (_, index) => ({
+      id: `player-${index + 1}`,
+      name: `player-${index + 1}`,
+      status: 'AVAILABLE'
+    }))
+    const teams = players.map((player, index) => ({
+      id: `team-${index + 1}`,
+      player1: player,
+      player2: null,
+      key: player.name
+    }))
+
+    cy.visit('/manage/location-1/legacy-session', {
+      onBeforeLoad: window => {
+        window.localStorage.setItem('pickleball_players', JSON.stringify(players))
+        window.localStorage.setItem('pickleball_locations', JSON.stringify([{
+          id: 'location-1',
+          name: 'Central Club',
+          description: '',
+          nbCourts: 2,
+          status: 'ACTIVE'
+        }]))
+        window.localStorage.setItem('pickleball_sessions', JSON.stringify([{
+          id: 'legacy-session',
+          locationId: 'location-1',
+          order: 1,
+          startTime: new Date().toISOString(),
+          endTime: null,
+          status: 'STARTED',
+          playerWaitingTimes: {},
+          attendingPlayers: players
+        }]))
+        window.localStorage.setItem('pickleball_courts', JSON.stringify([
+          { id: 'court-1', locationId: 'location-1', number: 1 },
+          { id: 'court-2', locationId: 'location-1', number: 2 }
+        ]))
+        window.localStorage.setItem('pickleball_teams', JSON.stringify(teams))
+        window.localStorage.setItem('pickleball_rotations', JSON.stringify([{
+          id: 'legacy-rotation',
+          sessionId: 'legacy-session',
+          order: 1,
+          games: [
+            {
+              id: 'game-1',
+              number: 1,
+              courtId: 'court-1',
+              teamAId: 'team-1',
+              teamBId: 'team-2',
+              scoreTeamA: null,
+              scoreTeamB: null,
+              winnerTeam: null,
+              loserTeam: null
+            },
+            {
+              id: 'game-2',
+              number: 2,
+              courtId: 'court-2',
+              teamAId: 'team-3',
+              teamBId: 'team-4',
+              scoreTeamA: null,
+              scoreTeamB: null,
+              winnerTeam: null,
+              loserTeam: null
+            }
+          ],
+          waitingPlayers: []
+        }]))
+      }
+    })
+
+    cy.url().should('include', '/manage/location-1/legacy-session')
+    cy.get('.court').should('have.length', 2)
+    cy.get('.court').eq(0).should('not.have.class', 'court--unused')
+    cy.get('.court').eq(1)
+      .should('have.class', 'court--unused')
+      .and('contain.text', 'Inutilisé')
+    cy.get('.waiting-players .waiting').should('have.length', 2)
+
+    cy.window().then(window => {
+      const [rotation] = JSON.parse(
+        window.localStorage.getItem('pickleball_rotations')
+      )
+      const persistedTeams = JSON.parse(
+        window.localStorage.getItem('pickleball_teams')
+      )
+
+      expect(rotation.games.map(game => game.id)).to.deep.equal(['game-1'])
+      expect(rotation.waitingPlayers.map(player => player.id))
+        .to.deep.equal(['player-3', 'player-4'])
+      expect(persistedTeams.map(team => team.id))
+        .to.deep.equal(['team-1', 'team-2'])
+    })
+  })
+
+  it('shows a correlated 500 page for an irreparable Session graph', () => {
+    const players = Array.from({ length: 4 }, (_, index) => ({
+      id: `player-${index + 1}`,
+      name: `player-${index + 1}`,
+      status: 'AVAILABLE'
+    }))
+
+    cy.visit('/manage/location-1/broken-session', {
+      failOnStatusCode: false,
+      onBeforeLoad: window => {
+        const clipboardWrite = cy.stub().resolves()
+        clipboardWrite.as('clipboardWrite')
+        Object.defineProperty(window.navigator, 'clipboard', {
+          configurable: true,
+          value: { writeText: clipboardWrite }
+        })
+        window.__internalErrorLogs = []
+        window.console.error = (...args) => {
+          window.__internalErrorLogs.push(args)
+        }
+        window.localStorage.setItem('pickleball_players', JSON.stringify(players))
+        window.localStorage.setItem('pickleball_locations', JSON.stringify([{
+          id: 'location-1',
+          name: 'Central Club',
+          description: '',
+          nbCourts: 1,
+          status: 'ACTIVE'
+        }]))
+        window.localStorage.setItem('pickleball_sessions', JSON.stringify([{
+          id: 'broken-session',
+          locationId: 'location-1',
+          order: 1,
+          startTime: new Date().toISOString(),
+          endTime: null,
+          status: 'STARTED',
+          playerWaitingTimes: {},
+          attendingPlayers: players
+        }]))
+        window.localStorage.setItem('pickleball_courts', JSON.stringify([
+          { id: 'court-1', locationId: 'location-1', number: 1 }
+        ]))
+        window.localStorage.setItem('pickleball_teams', JSON.stringify([{
+          id: 'team-b',
+          player1: null,
+          player2: null,
+          key: ''
+        }]))
+        window.localStorage.setItem('pickleball_rotations', JSON.stringify([{
+          id: 'broken-rotation',
+          sessionId: 'broken-session',
+          order: 1,
+          games: [{
+            id: 'broken-game',
+            number: 1,
+            courtId: 'court-1',
+            teamAId: 'unknown-team',
+            teamBId: 'team-b',
+            scoreTeamA: null,
+            scoreTeamB: null,
+            winnerTeam: null,
+            loserTeam: null
+          }],
+          waitingPlayers: players
+        }]))
+      }
+    })
+
+    cy.location('pathname').should('eq', '/500')
+    cy.contains('h1', '500 - Internal Server Error').should('be.visible')
+    cy.location('search').then(search => {
+      const query = new URLSearchParams(search)
+      const codeError = query.get('codeError')
+      const errorUuid = query.get('errorUuid')
+
+      expect(codeError).to.equal('SESSION_GRAPH_INVALID')
+      expect(errorUuid).to.match(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+      )
+      cy.get('.internal-error__message')
+        .should('contain.text', `${codeError} - ${errorUuid}`)
+      cy.window().then(window => {
+        const errorLog = window.__internalErrorLogs.find(
+          args => args[0] === 'Internal application error'
+        )
+
+        expect(errorLog[1]).to.include({ codeError, errorUuid })
+      })
+    })
+
+    cy.clock()
+    cy.get('.internal-error__message').invoke('text').then(message => {
+      cy.get('.internal-error__copy').click()
+      cy.get('@clipboardWrite').should('have.been.calledWith', message)
+    })
+    cy.contains('output', 'message copié').should('be.visible')
+    cy.tick(2500)
+    cy.get('output').should('not.exist')
+    cy.contains('a', 'Back to Home').click()
+    cy.url().should('eq', Cypress.config().baseUrl + '/')
+  })
+
   it('clears the selected location from the bottom of the viewport', () => {
     cy.visit('/', {
       onBeforeLoad: window => {
@@ -642,8 +838,8 @@ describe('Application routes', () => {
     cy.get('.session-player-card').should('have.length', 20)
     cy.get('.court-setup').should('not.exist')
     cy.get('.courts-container').should('not.exist')
-    cy.get('.session-form__start').should('be.disabled')
-    cy.get('.session-form__header').should(header => {
+    cy.get('.manage-session__start').should('be.disabled')
+    cy.get('.manage-session__header').should(header => {
       expect(getComputedStyle(header[0]).position).to.equal('sticky')
     })
     cy.get('.session-form').should(form => {
@@ -692,7 +888,7 @@ describe('Application routes', () => {
       ).to.be.greaterThan(document.documentElement.clientHeight)
     })
     cy.scrollTo('bottom')
-    cy.get('.session-form__header').should(header => {
+    cy.get('.manage-session__header').should(header => {
       expect(
         header[0].getBoundingClientRect().top,
         'sticky header remains visible during page scroll'
@@ -729,24 +925,62 @@ describe('Application routes', () => {
 
     cy.get('.session-player-card').eq(1).click()
     cy.get('.session-player-card').eq(2).click()
-    cy.get('.session-form__start').should('be.disabled')
+    cy.get('.manage-session__start').should('be.disabled')
     cy.get('.session-player-card').eq(3).click()
-    cy.get('.session-form__start').should('not.be.disabled')
+    cy.get('.manage-session__start').should('not.be.disabled')
 
     cy.reload()
 
     cy.get('.session-player-card--selected').should('have.length', 4)
-    cy.get('.session-form__start').should('not.be.disabled')
+    cy.get('.manage-session__start').should('not.be.disabled')
     cy.get('.session-player-card').eq(0).click()
     cy.get('.session-player-card--selected').should('have.length', 3)
-    cy.get('.session-form__start').should('be.disabled')
+    cy.get('.manage-session__start').should('be.disabled')
     cy.get('.session-player-card').eq(0).click()
-    cy.get('.session-form__start').click()
+    cy.get('.manage-session__start').click()
 
     cy.get('.session-form').should('not.exist')
     cy.contains('h1', 'Training Session Manager').should('be.visible')
     cy.contains('h2', 'Central Club # Session 1').should('be.visible')
+    cy.contains('h3', 'Rotation N° 1').should('be.visible')
+    cy.get('h1').then(heading => {
+      cy.get('.session-identity').should(sessionIdentity => {
+        expect(getComputedStyle(sessionIdentity[0]).fontSize)
+          .to.equal(getComputedStyle(heading[0]).fontSize)
+      })
+    })
+    cy.get('.rotation-card__header').then(rotationHeader => {
+      const style = getComputedStyle(rotationHeader[0])
+
+      expect(style.position).to.equal('sticky')
+      expect(getComputedStyle(rotationHeader[0].querySelector('h3')).fontSize)
+        .to.equal('24px')
+      cy.get('.manage-session__header').then(sessionHeader => {
+        expect(parseFloat(style.top)).to.be.closeTo(
+          sessionHeader[0].getBoundingClientRect().height,
+          1
+        )
+      })
+    })
+    cy.get('.rotation-card__start').should('be.visible')
+    cy.get('.rotation-card__stop').should('not.exist')
     cy.get('.courts-container').should('be.visible')
+    cy.get('.court').should('have.length', 2)
+    cy.get('.court').eq(0)
+      .should('not.have.class', 'court--unused')
+      .and('contain.text', 'Court 1')
+      .find('.game-card')
+      .should('exist')
+    cy.get('.court').eq(1)
+      .should('have.class', 'court--unused')
+      .and('have.css', 'background-color', 'rgb(225, 228, 231)')
+      .and('contain.text', 'Court 2')
+      .and('contain.text', 'Inutilisé')
+      .find('.game-card')
+      .should('not.exist')
+    cy.get('.manage-session__header').should(header => {
+      expect(getComputedStyle(header[0]).position).to.equal('sticky')
+    })
     cy.window().then(window => {
       const [session] = JSON.parse(
         window.localStorage.getItem('pickleball_sessions')
@@ -763,6 +997,72 @@ describe('Application routes', () => {
         .to.deep.equal(['player-2', 'player-3', 'player-4', 'player-1'])
       expect(rotation.waitingPlayers.map(player => player.id))
         .not.to.include('player-5')
+      expect(rotation.games).to.have.length(1)
+      expect(rotation.status).to.equal('CREATED')
+    })
+
+    cy.get('.rotation-card__start').should('be.disabled')
+    cy.get('.waiting-players .waiting').eq(0).trigger('dragstart')
+    cy.get('.team-a .team-players').trigger('drop')
+    cy.get('.waiting-players .waiting').eq(0).trigger('dragstart')
+    cy.get('.team-a .team-players').trigger('drop')
+    cy.get('.waiting-players .waiting').eq(0).trigger('dragstart')
+    cy.get('.team-b .team-players').trigger('drop')
+    cy.get('.rotation-card__start').should('be.disabled')
+    cy.get('.waiting-players .waiting').eq(0).trigger('dragstart')
+    cy.get('.team-b .team-players').trigger('drop')
+    cy.get('.rotation-card__start').should('not.be.disabled').click()
+    cy.get('.rotation-card__start').should('not.exist')
+    cy.get('.rotation-card__stop').should('be.visible')
+    cy.window().then(window => {
+      const [rotation] = JSON.parse(
+        window.localStorage.getItem('pickleball_rotations')
+      )
+
+      expect(rotation.status).to.equal('IN_PROGRESS')
+      expect(rotation.startTime).to.be.a('string')
+    })
+
+    cy.get('.rotation-card__stop').click()
+    cy.get('.rotation-card__start').should('not.exist')
+    cy.get('.rotation-card__stop').should('not.exist')
+    cy.get('.rotation-card__next').should('be.visible').and('be.disabled')
+    cy.window().then(window => {
+      const [rotation] = JSON.parse(
+        window.localStorage.getItem('pickleball_rotations')
+      )
+
+      expect(rotation.status).to.equal('SCORING')
+      rotation.games[0].scoreTeamA = 11
+      rotation.games[0].scoreTeamB = 7
+      rotation.games[0].winnerTeam = rotation.games[0].teamAId
+      rotation.games[0].loserTeam = rotation.games[0].teamBId
+      window.localStorage.setItem(
+        'pickleball_rotations',
+        JSON.stringify([rotation])
+      )
+    })
+
+    cy.reload()
+    cy.get('.rotation-card__next').should('not.be.disabled').click()
+    cy.contains('h3', 'Rotation N° 2').should('be.visible')
+    cy.get('.rotation-card__next').should('not.exist')
+    cy.get('.rotation-card__start').should('be.visible').and('be.disabled')
+    cy.get('.court--unused').should('have.length', 2)
+    cy.get('.waiting-players .waiting').should('have.length', 4)
+    cy.window().then(window => {
+      const rotations = JSON.parse(
+        window.localStorage.getItem('pickleball_rotations')
+      )
+      const currentRotation = rotations.find(rotation => rotation.order === 1)
+      const nextRotation = rotations.find(rotation => rotation.order === 2)
+
+      expect(currentRotation.status).to.equal('FINISHED')
+      expect(currentRotation.endTime).to.be.a('string')
+      expect(nextRotation.status).to.equal('CREATED')
+      expect(nextRotation.games).to.deep.equal([])
+      expect(nextRotation.waitingPlayers.map(player => player.id))
+        .to.deep.equal(['player-2', 'player-3', 'player-4', 'player-1'])
     })
   })
 })

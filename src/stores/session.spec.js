@@ -34,7 +34,7 @@ async function startPreparedSession(store, count = 4) {
 
 function advanceRotationTo(store, status) {
   if (status === RotationStatus.CREATED) return
-  store.startRotation(new Date('2026-08-16T10:05:00.000Z'))
+  startReadyRotation(store, new Date('2026-08-16T10:05:00.000Z'))
   if (status === RotationStatus.IN_PROGRESS) return
   store.startRotationScoring()
   if (status === RotationStatus.SCORING) return
@@ -43,6 +43,26 @@ function advanceRotationTo(store, status) {
   if (status !== RotationStatus.FINISHED) {
     throw new Error(`Unsupported RotationStatus: ${status}`)
   }
+}
+
+function fillCurrentRotationTeams(store) {
+  store.rotation.games.forEach(game => {
+    [game.teamAId, game.teamBId].forEach(teamId => {
+      const team = store.getTeamById(teamId)
+      while (team.players.length < 2) {
+        const [nextPlayer] = store.rotation.waitingPlayers
+        if (!nextPlayer) {
+          throw new Error('Not enough waiting Players to complete the Rotation')
+        }
+        store.movePlayer({ playerId: nextPlayer.id, targetTeamId: teamId })
+      }
+    })
+  })
+}
+
+function startReadyRotation(store, at = new Date()) {
+  fillCurrentRotationTeams(store)
+  store.startRotation(at)
 }
 
 function resolveRotationScores(store) {
@@ -521,7 +541,7 @@ describe('useSessionStore', () => {
     const startTime = new Date('2026-08-16T10:05:00.000Z')
     const endTime = new Date('2026-08-16T10:20:00.000Z')
 
-    store.startRotation(startTime)
+    startReadyRotation(store, startTime)
 
     expect(store.rotation.status).toBe(RotationStatus.IN_PROGRESS)
     expect(store.rotation.startTime).toEqual(startTime)
@@ -545,10 +565,93 @@ describe('useSessionStore', () => {
     expect(persistedRotation.endTime).toEqual(endTime)
   })
 
+  it('requires two Players in each Team before starting a Rotation', async () => {
+    const store = useSessionStore()
+    await startPreparedSession(store)
+
+    expect(store.canStartRotation).toBe(false)
+    expect(() => store.startRotation())
+      .toThrow('Every Game requires exactly 2 Players in each Team')
+    expect(store.rotation.status).toBe(RotationStatus.CREATED)
+    expect(storageService.getRotations()[0].status)
+      .toBe(RotationStatus.CREATED)
+
+    fillCurrentRotationTeams(store)
+    expect(store.canStartRotation).toBe(true)
+
+    const team = store.teams[1]
+    const removedPlayer = team.players[1]
+    store.removePlayer(removedPlayer.id)
+    expect(store.canStartRotation).toBe(false)
+
+    store.movePlayer({
+      playerId: removedPlayer.id,
+      targetTeamId: team.id
+    })
+    expect(store.canStartRotation).toBe(true)
+
+    store.startRotation(new Date('2026-08-16T10:05:00.000Z'))
+    expect(store.rotation.status).toBe(RotationStatus.IN_PROGRESS)
+  })
+
+  it('refuses to plan the next Rotation while a Game is unresolved', async () => {
+    const store = useSessionStore()
+    await startPreparedSession(store)
+    startReadyRotation(store, new Date('2026-08-16T10:05:00.000Z'))
+    store.startRotationScoring()
+
+    expect(() => store.planNextRotation(
+      new Date('2026-08-16T10:20:00.000Z')
+    )).toThrow('Cannot finish Rotation with unresolved Games')
+    expect(store.rotation.status).toBe(RotationStatus.SCORING)
+    expect(storageService.getRotations()).toHaveLength(1)
+    expect(storageService.getRotations()[0].status)
+      .toBe(RotationStatus.SCORING)
+  })
+
+  it('finishes the resolved Rotation and persists an empty next plan', async () => {
+    const store = useSessionStore()
+    const players = await startPreparedSession(store)
+    const locationId = store.location.id
+    const sessionId = store.session.id
+    const currentRotationId = store.rotation.id
+    const endTime = new Date('2026-08-16T10:20:00.000Z')
+    startReadyRotation(store, new Date('2026-08-16T10:05:00.000Z'))
+    store.startRotationScoring()
+    resolveRotationScores(store)
+
+    const nextRotation = store.planNextRotation(endTime)
+    const persistedRotations = storageService.getRotations()
+    const persistedCurrent = persistedRotations.find(
+      rotation => rotation.id === currentRotationId
+    )
+
+    expect(persistedCurrent.status).toBe(RotationStatus.FINISHED)
+    expect(persistedCurrent.endTime).toEqual(endTime)
+    expect(nextRotation.order).toBe(2)
+    expect(nextRotation.status).toBe(RotationStatus.CREATED)
+    expect(nextRotation.games).toEqual([])
+    expect(nextRotation.waitingPlayers.map(player => player.id))
+      .toEqual(players.map(player => player.id))
+    expect(store.teams).toEqual([])
+    expect(persistedRotations).toHaveLength(2)
+
+    disposePinia(pinia)
+    pinia = createPinia()
+    setActivePinia(pinia)
+    const restoredStore = useSessionStore()
+    await restoredStore.ensureSession({ locationId, sessionId })
+
+    expect(restoredStore.rotation.order).toBe(2)
+    expect(restoredStore.rotation.games).toEqual([])
+    expect(restoredStore.rotation.waitingPlayers.map(player => player.id))
+      .toEqual(players.map(player => player.id))
+  })
+
   it('orchestrates and persists tied Game scoring', async () => {
     const store = useSessionStore()
     await startPreparedSession(store)
-    store.startRotation(new Date('2026-08-16T10:05:00.000Z'))
+    startReadyRotation(store, new Date('2026-08-16T10:05:00.000Z'))
     store.startRotationScoring()
     const [game] = store.rotation.games
 
@@ -575,7 +678,7 @@ describe('useSessionStore', () => {
 
   it('numbers Games sequentially in Court order', async () => {
     const store = useSessionStore()
-    await startPreparedSession(store)
+    await startPreparedSession(store, 12)
 
     store.setCourts(3)
 
@@ -589,7 +692,7 @@ describe('useSessionStore', () => {
   it('restores the highest-order Rotation and preserves its history', async () => {
     const store = useSessionStore()
     const players = await startPreparedSession(store)
-    store.startRotation(new Date('2026-08-16T10:05:00.000Z'))
+    startReadyRotation(store, new Date('2026-08-16T10:05:00.000Z'))
     store.startRotationScoring()
     resolveRotationScores(store)
     store.finishRotation(new Date('2026-08-16T10:20:00.000Z'))
@@ -633,12 +736,18 @@ describe('useSessionStore', () => {
       .toEqual([1, 2])
   })
 
-  it('rejects an incoherent persisted graph before exposing it', async () => {
+  it('rejects a persisted graph that migration cannot repair', async () => {
     const location = new LocationBuilder()
       .withId('location-1')
       .withName('Central Club')
       .withNbCourts(1)
       .build()
+    const attendees = Array.from({ length: 4 }, (_, index) =>
+      new PlayerBuilder()
+        .withId(`attendee-${index + 1}`)
+        .withName(`attendee-${index + 1}`)
+        .build()
+    )
     const session = new Session(
       location.id,
       1,
@@ -646,7 +755,8 @@ describe('useSessionStore', () => {
       null,
       SessionStatus.STARTED,
       new Map(),
-      'session-1'
+      'session-1',
+      attendees
     )
     const teams = [
       new Team(null, null, 'team-a'),
@@ -654,8 +764,8 @@ describe('useSessionStore', () => {
     ]
     const game = new Game({
       number: 1,
-      courtId: 'unknown-court',
-      teamAId: teams[0].id,
+      courtId: 'court-1',
+      teamAId: 'unknown-team',
       teamBId: teams[1].id,
       scoreTeamA: null,
       scoreTeamB: null,
@@ -682,7 +792,7 @@ describe('useSessionStore', () => {
       locationId: location.id,
       sessionId: session.id
     })).rejects.toThrow(
-      'Game "game-1" references unknown Court "unknown-court"'
+      'Unable to migrate Session "session-1" graph'
     )
     expect(store.rotation).toBeNull()
   })
@@ -712,6 +822,8 @@ describe('useSessionStore', () => {
     expect(() => store.startRotationScoring())
       .toThrow('No rotation is loaded')
     expect(() => store.finishRotation())
+      .toThrow('No rotation is loaded')
+    expect(() => store.planNextRotation())
       .toThrow('No rotation is loaded')
   })
 
@@ -749,21 +861,26 @@ describe('useSessionStore', () => {
     const [player] = await startPreparedSession(store)
     const targetTeam = store.teams[0]
     advanceRotationTo(store, status)
+    const teamPlayerIds = targetTeam.players.map(candidate => candidate.id)
+    const waitingPlayerIds = store.rotation.waitingPlayers.map(
+      candidate => candidate.id
+    )
 
     store.movePlayer({
       playerId: player.id,
       targetTeamId: targetTeam.id
     })
 
-    expect(targetTeam.players).toHaveLength(0)
+    expect(targetTeam.players.map(candidate => candidate.id))
+      .toEqual(teamPlayerIds)
     expect(store.rotation.waitingPlayers.map(candidate => candidate.id))
-      .toContain(player.id)
+      .toEqual(waitingPlayerIds)
   })
 
   it('refuses to add a player after the rotation has started', async () => {
     const store = useSessionStore()
     await startPreparedSession(store)
-    store.startRotation()
+    startReadyRotation(store)
     const player = new PlayerBuilder()
       .withId('outside-player')
       .withName('outsider')
@@ -790,7 +907,7 @@ describe('useSessionStore', () => {
       playerId: player.id,
       targetTeamId: targetTeam.id
     })
-    store.startRotation()
+    startReadyRotation(store)
     const waitingPlayerIds = store.rotation.waitingPlayers.map(
       candidate => candidate.id
     )
@@ -807,7 +924,7 @@ describe('useSessionStore', () => {
     const store = useSessionStore()
     await startPreparedSession(store)
     const initialCourtIds = store.courts.map(court => court.id)
-    store.startRotation()
+    startReadyRotation(store)
 
     store.setCourts(2)
 

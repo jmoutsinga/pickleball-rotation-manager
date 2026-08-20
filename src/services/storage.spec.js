@@ -173,6 +173,12 @@ describe('storageService Session graph persistence', () => {
       .withName('Central Club')
       .withNbCourts(1)
       .build()
+    const attendees = Array.from({ length: 4 }, (_, index) =>
+      new PlayerBuilder()
+        .withId(`player-${index + 1}`)
+        .withName(`player-${index + 1}`)
+        .build()
+    )
     const session = new Session(
       location.id,
       1,
@@ -180,7 +186,8 @@ describe('storageService Session graph persistence', () => {
       null,
       SessionStatus.STARTED,
       new Map(),
-      'session-1'
+      'session-1',
+      attendees
     )
     const activeCourt = new Court(location.id, 1, 'court-1')
     const historicalCourt = new Court(location.id, 2, 'court-2')
@@ -202,7 +209,7 @@ describe('storageService Session graph persistence', () => {
       session.id,
       1,
       [game],
-      [],
+      attendees,
       'rotation-1'
     )
     const legacyGames = [{ id: 'legacy-game' }]

@@ -1,6 +1,7 @@
 import type { Court } from './Court'
 import type { Location } from './Location'
 import type { Rotation } from './Rotation'
+import { RotationStatus } from './RotationStatus'
 import type { Session } from './Session'
 import { SessionStatus } from './SessionStatus'
 import type { Team } from './Team'
@@ -50,14 +51,24 @@ export function validateSessionGraph(graph: SessionGraph): void {
   const gameIds = new Set<string>()
   const gameNumbers: number[] = []
   const referencedTeamIds = new Set<string>()
+  const usableCourtCount = session.getUsableCourtCount(location.nbCourts)
+  const usableCourtIds = new Set(
+    courts
+      .filter(court => court.locationId === location.id)
+      .sort((left, right) => left.number - right.number)
+      .slice(0, usableCourtCount)
+      .map(court => court.id)
+  )
 
   sessionRotations.forEach(rotation => {
+    const isEmptyNextRotation = isEmptyNextRotationPlaceholder(rotation)
     if (
       session.status === SessionStatus.STARTED &&
-      rotation.games.length !== location.nbCourts
+      !isEmptyNextRotation &&
+      rotation.games.length !== usableCourtCount
     ) {
       throw new Error(
-        `Started Session "${session.id}" requires ${location.nbCourts} Games in each Rotation`
+        `Started Session "${session.id}" requires ${usableCourtCount} Games in each Rotation`
       )
     }
 
@@ -80,6 +91,11 @@ export function validateSessionGraph(graph: SessionGraph): void {
       if (court.locationId !== location.id) {
         throw new Error(
           `Court "${court.id}" does not belong to Location "${location.id}"`
+        )
+      }
+      if (!usableCourtIds.has(court.id)) {
+        throw new Error(
+          `Game "${game.id}" references unusable Court ${court.number} in Session "${session.id}"`
         )
       }
       if (rotationCourtIds.has(court.id)) {
@@ -126,6 +142,25 @@ export function validateSessionGraph(graph: SessionGraph): void {
   })
 
   assertSequence(gameNumbers, 'Game numbers', session.id)
+}
+
+export function isEmptyNextRotationPlaceholder(rotation: Rotation): boolean {
+  return rotation.order > 1 &&
+    rotation.status === RotationStatus.CREATED &&
+    rotation.games.length === 0
+}
+
+export function isRotationLineupComplete(
+  rotation: Rotation,
+  teams: readonly Team[]
+): boolean {
+  if (rotation.games.length === 0) return false
+
+  const teamsById = new Map(teams.map(team => [team.id, team]))
+  return rotation.games.every(game =>
+    teamsById.get(game.teamAId)?.players.length === 2 &&
+    teamsById.get(game.teamBId)?.players.length === 2
+  )
 }
 
 function assignPlayer(
