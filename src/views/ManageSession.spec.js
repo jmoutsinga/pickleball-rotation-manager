@@ -14,7 +14,7 @@ import ManageSession from './ManageSession.vue'
 
 const SessionFormStub = {
   name: 'SessionForm',
-  props: ['sessionOrder', 'availablePlayers', 'selectedPlayerIds'],
+  props: ['locationName', 'sessionOrder', 'availablePlayers', 'selectedPlayerIds'],
   emits: ['selection-change', 'start'],
   template: `
     <section class="session-form-stub">
@@ -68,6 +68,7 @@ describe('ManageSession attendee preparation', () => {
     const { wrapper } = mountView(session, players)
     const form = wrapper.getComponent(SessionFormStub)
 
+    expect(form.props('locationName')).toBe('Central Club')
     expect(form.props('sessionOrder')).toBe(3)
     expect(form.props('availablePlayers')).toEqual(players)
     expect(form.props('selectedPlayerIds'))
@@ -117,7 +118,8 @@ describe('ManageSession attendee preparation', () => {
     await wrapper.vm.$nextTick()
 
     expect(wrapper.findComponent(SessionFormStub).exists()).toBe(false)
-    expect(wrapper.get('h2').text()).toBe('Training Session Manager')
+    expect(wrapper.get('.session-identity').text()).toBe('Central Club # Session 1')
+    expect(wrapper.get('h1').text()).toBe('Training Session Manager')
     expect(wrapper.find('.court-setup').exists()).toBe(false)
     expect(wrapper.find('.add-player-form').exists()).toBe(false)
   })

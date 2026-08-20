@@ -5,7 +5,7 @@ const routes = [
   },
   {
     path: '/manage',
-    heading: 'Session #1'
+    heading: 'Training Session Manager'
   },
   {
     path: '/manage-players',
@@ -637,7 +637,8 @@ describe('Application routes', () => {
     cy.get('.location-card-session-action').click()
 
     cy.url().should('match', /\/manage\/location-1\/[0-9a-f-]+$/)
-    cy.contains('h2', 'Session #1').should('be.visible')
+    cy.contains('h1', 'Training Session Manager').should('be.visible')
+    cy.contains('h2', 'Central Club # Session 1').should('be.visible')
     cy.get('.session-player-card').should('have.length', 20)
     cy.get('.court-setup').should('not.exist')
     cy.get('.courts-container').should('not.exist')
@@ -743,7 +744,8 @@ describe('Application routes', () => {
     cy.get('.session-form__start').click()
 
     cy.get('.session-form').should('not.exist')
-    cy.contains('h2', 'Training Session Manager').should('be.visible')
+    cy.contains('h1', 'Training Session Manager').should('be.visible')
+    cy.contains('h2', 'Central Club # Session 1').should('be.visible')
     cy.get('.courts-container').should('be.visible')
     cy.window().then(window => {
       const [session] = JSON.parse(

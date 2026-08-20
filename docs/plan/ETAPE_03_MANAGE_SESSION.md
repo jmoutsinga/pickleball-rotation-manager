@@ -1,9 +1,9 @@
 # Étape 3 — Modèle, participants et structure de Manage Session
 
-- État : **En cours — prochaine tranche 3.19**.
+- État : **En cours — prochaine tranche 3.20**.
 - Attendu fonctionnel : [`ATTENDU_FONCTIONNEL.md`](../ATTENDU_FONCTIONNEL.md).
 - Tableau de bord : [`PLAN.md`](../../PLAN.md).
-- Dernière validation significative : **2026-08-20 13:50:23** — type-check, lint incluant Cypress, 254 tests Vitest, 17 scénarios Cypress, `git diff --check` et build Vite réussis après clôture de 3.18.1.
+- Dernière validation significative : **2026-08-20 19:00:58** — type-check, lint incluant Cypress, 254 tests Vitest, 17 scénarios Cypress, `git diff --check` et build Vite réussis après alignement du titre, de l’identité et de leurs tests.
 
 ## Plan canonique
 
@@ -28,7 +28,7 @@
 16. [x] Définir les invariants et transitions autorisées.
 17. [x] Charger et valider Location et Session depuis la route.
 18. [x] Traiter une Session inexistante, incohérente ou terminée.
-19. [ ] Afficher `Location.name # Session.order` autour de la phase de préparation et de la phase démarrée.
+19. [x] Afficher le titre de page « Training Session Manager » et l’identité `Location.name # Session order` pendant la préparation et la phase démarrée.
 20. [ ] Extraire `RotationCard`, `CourtCard`, `GameCard`, `TeamCard` et `OffCourtPlayers`.
 21. [ ] Construire un Game par Court.
 22. [ ] Garantir la persistance et la restauration du graphe complet.
@@ -47,6 +47,13 @@
 - [x] Retirer les déclarations globales locales devenues redondantes de `routes.cy.js`.
 - [x] Étendre `npm run lint` au dossier `cypress` afin que `prebuild` et `build` analysent les tests E2E.
 - [x] Vérifier le lint isolé de `routes.cy.js`, puis la chaîne complète de build.
+
+### Tranche 3.19 — identité de la Location et de la Session
+
+- [x] Afficher « Training Session Manager » comme titre `<h1>` stable de `ManageSession`.
+- [x] Afficher l’identité `<h2>` au format `Location.name # Session order` dans `SessionForm` pendant `CREATED`, puis directement dans `ManageSession` pendant `STARTED`.
+- [x] Transmettre `locationName` à `SessionForm` par une prop explicite et couvrir cette frontière avec le stub du test parent.
+- [x] Couvrir les deux états par les tests de composant et vérifier dans Cypress le titre ainsi que l’identité avant et après « Start Session ».
 
 
 ## Découpage détaillé historique

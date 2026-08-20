@@ -77,7 +77,8 @@ La route devient ainsi partageable et rechargeable sans dépendre d’une sélec
 - Si la Session est en état 'FINISHED', afficher une fenêtre modale avec le message 'Cette session est terminée, souhaitez-vous démarrer une nouvelle session ?' :
   - Si oui, créer une nouvelle Session dont session.order est initialisé à max+1 de toutes les sessions de cette location (max(location.sessions.order) + 1) puis rediriger vers la vue ManageSession avec cette nouvelle Session.
   - Si non, fermer la fenêtre modale et rediriger vers la vue Home.
-- Afficher en titre dans la vue : Location.name # Session.order.
+- Afficher « Training Session Manager » comme titre principal de la vue.
+- Afficher `Location.name # Session order` comme identité de la préparation et de la Session démarrée.
 - Afficher un bouton « New Rotation ».
 - Créer une nouvelle Rotation liée à la Session.
 - Stocker l'horaire de début de la rotation.

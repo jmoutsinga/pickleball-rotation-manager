@@ -1,7 +1,7 @@
 <template>
   <form class="session-form" @submit.prevent="emit('start')">
     <header class="session-form__header session-form__header--sticky">
-      <h2>Session #{{ sessionOrder }}</h2>
+      <h2>{{locationName}} # Session {{ sessionOrder }}</h2>
       <button
         type="submit"
         class="session-form__start"
@@ -37,6 +37,7 @@ import SessionPlayerCard from './SessionPlayerCard.vue'
 defineOptions({ name: 'SessionForm' })
 
 const props = withDefaults(defineProps<{
+  locationName: string
   sessionOrder: number
   availablePlayers: Array<Pick<Player, 'id' | 'name'>>
   selectedPlayerIds?: string[]

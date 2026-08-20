@@ -16,13 +16,14 @@ describe('SessionForm', () => {
   it('renders the sticky heading, all available players and restored selection', () => {
     const wrapper = mount(SessionForm, {
       props: {
+        locationName: 'Central Club',
         sessionOrder: 3,
         availablePlayers: players,
         selectedPlayerIds: players.slice(0, 2).map(player => player.id)
       }
     })
 
-    expect(wrapper.get('h2').text()).toBe('Session #3')
+    expect(wrapper.get('h2').text()).toBe('Central Club # Session 3')
     expect(wrapper.findAllComponents({ name: 'SessionPlayerCard' }))
       .toHaveLength(5)
     expect(wrapper.findAll('.session-player-card--selected')).toHaveLength(2)

@@ -1,7 +1,10 @@
 <template>
   <div class="manage-session">
+    <h1>Training Session Manager</h1>
+
     <SessionForm
       v-if="isPreparingSession"
+      :location-name="location.name"
       :session-order="session.order"
       :available-players="players"
       :selected-player-ids="selectedAttendingPlayerIds"
@@ -10,8 +13,10 @@
     />
 
     <template v-else>
-      <h2>Training Session Manager</h2>
-    
+      <h2 v-if="location && session" class="session-identity">
+        {{ location.name }} # Session {{ session.order }}
+      </h2>
+
     <!-- Court Setup -->
     <div class="court-setup" v-if="!courtsInitialized">
       <h3>Setup Courts</h3>
@@ -136,6 +141,7 @@ export default {
     ...mapState(useSessionStore, {
       courts: 'getCourts',
       waitingPlayers: 'getWaitingPlayers',
+      location: 'location',
       session: 'session',
       players: 'players'
     }),
@@ -201,6 +207,10 @@ export default {
   padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
+}
+
+.session-identity {
+  margin-top: 0;
 }
 
 .court-setup {

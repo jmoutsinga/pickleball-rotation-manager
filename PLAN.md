@@ -13,11 +13,11 @@ Le cahier des charges détaillé, y compris la machine à états Session/Rotatio
 ### Situation actuelle
 
 - Étape active : **3 — Modèle, participants et structure de Manage Session**.
-- Tranche active : **3.19 — Afficher l’identité de la Location et de la Session**.
+- Tranche active : **3.20 — Extraire les composants de la Rotation**.
 - État de la tranche : **à démarrer**.
-- Prochaine action : afficher `Location.name # Session.order` autour de la préparation et de la phase démarrée.
-- Dernière tranche terminée : **3.18.1 — intégration de Cypress au lint du build**.
-- Dernière validation applicative complète : **2026-08-20 13:50:23** — type-check, lint incluant Cypress, 254 tests Vitest, 17 scénarios Cypress, `git diff --check` et build Vite réussis.
+- Prochaine action : extraire `RotationCard`, puis ses composants `CourtCard`, `GameCard`, `TeamCard` et `OffCourtPlayers`, sans changer le comportement métier existant.
+- Dernière tranche terminée : **3.19 — titre de Manage Session et identité de la Location/Session**.
+- Dernière validation applicative complète : **2026-08-20 19:00:58** — type-check, lint incluant Cypress, 254 tests Vitest, 17 scénarios Cypress, `git diff --check` et build Vite réussis après alignement du titre et de l’identité de Manage Session.
 - Éléments anticipés : la persistance/restauration du graphe de 3.22 et les affectations manuelles de 4.4 sont partiellement implémentées.
 - Marqueurs : `[x]` terminée ; `[==>]` en cours ; `[ ]` à faire.
 
@@ -34,11 +34,11 @@ Le cahier des charges détaillé, y compris la machine à états Session/Rotatio
 | 6 | Calcul de la Rotation suivante et modernisation de l’outillage | À faire | [Étape 6](docs/plan/ETAPE_06_ROTATION_SUIVANTE.md) |
 | 7 | SQLite | À faire | [Étape 7](docs/plan/ETAPE_07_SQLITE.md) |
 
-### Tranche active — 3.19
+### Tranche active — 3.20
 
-- [ ] Afficher le nom de la Location et l’ordre de la Session pendant la préparation `CREATED`.
-- [ ] Conserver cette identité visible pendant la phase `STARTED`.
-- [ ] Couvrir les deux rendus par des tests de composant et un parcours navigateur ciblé.
+- [ ] Extraire `RotationCard` de `ManageSession` en conservant les données et commandes à la frontière de la vue.
+- [ ] Extraire progressivement `CourtCard`, `GameCard`, `TeamCard` et `OffCourtPlayers` avec des props et événements explicites.
+- [ ] Couvrir chaque frontière de composant sans modifier les règles métier ou le graphe persistant.
 
 ### Politique documentaire
 
