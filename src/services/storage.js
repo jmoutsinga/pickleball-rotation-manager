@@ -1,303 +1,126 @@
-import {
-  Game,
-  Location,
-  LocationBuilder,
-  LocationStatus,
-  Player,
-  PlayerBuilder,
-  PlayerStatus,
-  Rotation,
-  Session,
-  SessionStatus,
-  Team
-} from '@/models'
-
-const STORAGE_KEYS = {
-  COURTS: 'pickleball_courts',
-  PLAYERS: 'pickleball_players',
-  LOCATIONS: 'pickleball_locations',
-  SESSIONS: 'pickleball_sessions',
-  ROTATIONS: 'pickleball_rotations',
-  GAMES: 'pickleball_games',
-  TEAMS: 'pickleball_teams'
-};
+import courtRepository from './storage/CourtRepository'
+import localStorageGateway from './storage/LocalStorageGateway'
+import locationRepository from './storage/LocationRepository'
+import playerRepository from './storage/PlayerRepository'
+import rotationGameNumberMigration from './storage/RotationGameNumberMigration'
+import rotationRepository from './storage/RotationRepository'
+import sessionGraphPersistenceService from './storage/SessionGraphPersistenceService'
+import sessionPersistenceService from './storage/SessionPersistenceService'
+import sessionRepository from './storage/SessionRepository'
+import { STORAGE_KEYS } from './storage/StorageKeys'
+import teamRepository from './storage/TeamRepository'
 
 class StorageService {
   saveCourts(courts) {
-    localStorage.setItem(STORAGE_KEYS.COURTS, JSON.stringify(courts));
+    courtRepository.saveAll(courts);
   }
 
   getCourts() {
-    const courts = localStorage.getItem(STORAGE_KEYS.COURTS);
-    return courts ? JSON.parse(courts) : [];
+    return courtRepository.getAll();
   }
 
   savePlayers(players) {
-    localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
+    playerRepository.saveAll(players);
   }
 
   updatePlayer(updatedPlayer) {
-    this.assertPlayer(updatedPlayer);
-    const players = this.getPlayers();
-    const index = players.findIndex(p => p.id === updatedPlayer.id);
-    if (index !== -1) {
-      this.assertUniquePlayerName(updatedPlayer.name, players, updatedPlayer.id);
-      players[index] = updatedPlayer;
-      this.savePlayers(players);
-    }
+    playerRepository.update(updatedPlayer);
   }
 
   changePlayerStatus(playerId, status) {
-    const players = this.getPlayers();
-    const player = players.find(candidate => candidate.id === playerId);
-
-    if (!player) {
-      throw new Error(`Player "${playerId}" does not exist`);
-    }
-
-    player.changeStatus(status);
-    this.savePlayers(players);
-
-    return player;
+    return playerRepository.changeStatus(playerId, status);
   }
 
   updatePlayers(updatedPlayers) {
-    const updatedById = new Map(
-      updatedPlayers.map(player => {
-        this.assertPlayer(player);
-        return [player.id, player];
-      })
-    );
-    const players = this.getPlayers().map(
-      player => updatedById.get(player.id) ?? player
-    );
-
-    this.savePlayers(players);
+    playerRepository.merge(updatedPlayers);
   }
 
   getPlayers() {
-    const players = localStorage.getItem(STORAGE_KEYS.PLAYERS);
-    return players ? JSON.parse(players).map(PlayerBuilder.fromJson) : [];
+    return playerRepository.getAll();
   }
 
   getWaitingPlayers() {
-    const players = this.getPlayers();
-    return players.filter(p => p.status === PlayerStatus.WAITING);
+    return playerRepository.getWaiting();
   }
 
   savePlayer(player) {
-    this.assertPlayer(player);
-    const players = this.getPlayers();
-    this.assertUniquePlayerName(player.name, players);
-    players.push(player);
-    this.savePlayers(players);
+    playerRepository.add(player);
   }
 
   updatePlayerTeam(playerId, teamId) {
-    const players = this.getPlayers();
-    const player = players.find(p => p.id === playerId);
-    if (player) {
-      player.changeStatus(teamId ? PlayerStatus.PLAYING : PlayerStatus.WAITING);
-      this.savePlayers(players);
-    }
+    playerRepository.updateTeam(playerId, teamId);
   }
 
   removePlayer(playerId) {
-    const players = this.getPlayers();
-    const player = players.find(p => p.id === playerId);
-    if (player) {
-      player.changeStatus(PlayerStatus.AVAILABLE);
-      this.savePlayers(players);
-    }
+    playerRepository.release(playerId);
   }
 
   saveLocations(locations) {
-    localStorage.setItem(STORAGE_KEYS.LOCATIONS, JSON.stringify(locations));
+    locationRepository.saveAll(locations);
   }
 
   saveLocation(location) {
-    this.assertLocation(location);
-    const locations = this.getLocations();
-    locations.push(location);
-    this.saveLocations(locations);
+    locationRepository.add(location);
   }
 
   updateLocation(updatedLocation) {
-    this.assertLocation(updatedLocation)
-
-    const locations = this.getLocations()
-    const index = locations.findIndex(
-        location => location.id === updatedLocation.id
-    )
-
-    if (index === -1) {
-      throw new Error(
-          `Location "${updatedLocation.id}" does not exist`
-      )
-    }
-
-    locations[index] = updatedLocation
-    this.saveLocations(locations)
+    locationRepository.update(updatedLocation)
   }
 
   getLocations() {
-    return this.getCollection(STORAGE_KEYS.LOCATIONS).map(LocationBuilder.fromJson);
+    return locationRepository.getAll();
   }
 
   getActiveLocations() {
-    return this.getLocations().filter(
-      location => location.status === LocationStatus.ACTIVE
-    );
+    return locationRepository.getActive();
   }
 
   deleteLocation(locationId) {
-    const locations = this.getLocations();
-    const location = locations.find(candidate => candidate.id === locationId);
-
-    if (!location) {
-      throw new Error(`Location "${locationId}" does not exist`);
-    }
-
-    location.changeStatus(LocationStatus.DELETED);
-    this.saveLocations(locations);
+    locationRepository.delete(locationId);
   }
 
   saveSessions(sessions) {
-    localStorage.setItem(STORAGE_KEYS.SESSIONS, JSON.stringify(sessions));
+    sessionRepository.saveAll(sessions);
   }
 
   getSessions() {
-    const sessionJsons = this.getCollection(STORAGE_KEYS.SESSIONS);
-    const requiresAttendeeMigration = sessionJsons.some(
-      session => !Array.isArray(session.attendingPlayers)
-    );
-
-    if (!requiresAttendeeMigration) {
-      return sessionJsons.map(Session.fromJson);
-    }
-
-    const players = this.getPlayers();
-    const playersById = new Map(players.map(player => [player.id, player]));
-    const rotations = this.getRotations();
-    const teamsById = new Map(
-      this.getTeams().map(team => [team.id, team])
-    );
-
-    const sessions = sessionJsons.map(sessionJson => {
-      if (Array.isArray(sessionJson.attendingPlayers)) {
-        return Session.fromJson(sessionJson);
-      }
-
-      const sessionRotations = rotations.filter(
-        rotation => rotation.sessionId === sessionJson.id
-      );
-      let attendingPlayers = [];
-
-      if (sessionRotations.length > 0) {
-        const attendeesById = new Map();
-
-        sessionRotations.forEach(rotation => {
-          rotation.waitingPlayers.forEach(player => {
-            attendeesById.set(
-              player.id,
-              playersById.get(player.id) ?? player
-            );
-          });
-
-          rotation.games.forEach(game => {
-            [game.teamAId, game.teamBId].forEach(teamId => {
-              teamsById.get(teamId)?.players.forEach(player => {
-                attendeesById.set(
-                  player.id,
-                  playersById.get(player.id) ?? player
-                );
-              });
-            });
-          });
-        });
-
-        attendingPlayers = [...attendeesById.values()];
-      } else if (sessionJson.status !== SessionStatus.CREATED) {
-        attendingPlayers = players.filter(
-          player => player.status !== PlayerStatus.DELETED
-        );
-      }
-
-      return Session.fromJson({
-        ...sessionJson,
-        attendingPlayers: attendingPlayers.map(player => player.toJSON())
-      });
-    });
-
-    this.saveSessions(sessions);
-    return sessions;
+    return sessionPersistenceService.getAll();
   }
 
   saveSession(session) {
-    const sessions = this.getSessions();
-    const alreadyStarted = sessions.some(existing =>
-      existing.locationId === session.locationId &&
-      existing.status === SessionStatus.STARTED &&
-      existing.id !== session.id
-    );
-    if (session.status === SessionStatus.STARTED && alreadyStarted) {
-      throw new Error('This location already has a started session');
-    }
-    const index = sessions.findIndex(existing => existing.id === session.id);
-    if (index === -1) sessions.push(session);
-    else sessions[index] = session;
-    this.saveSessions(sessions);
+    sessionPersistenceService.save(session);
   }
 
   saveRotations(rotations) {
-    localStorage.setItem(STORAGE_KEYS.ROTATIONS, JSON.stringify(rotations));
+    rotationRepository.saveAll(rotations);
   }
 
   getRotations() {
-    return this.getCollection(STORAGE_KEYS.ROTATIONS).map(Rotation.fromJson);
-  }
-
-  saveGames(games) {
-    localStorage.setItem(STORAGE_KEYS.GAMES, JSON.stringify(games));
-  }
-
-  getGames() {
-    return this.getCollection(STORAGE_KEYS.GAMES).map(Game.fromJson);
+    return rotationGameNumberMigration.migrate();
   }
 
   saveTeams(teams) {
-    localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
+    teamRepository.saveAll(teams);
   }
 
   getTeams() {
-    return this.getCollection(STORAGE_KEYS.TEAMS).map(Team.fromJson);
+    return teamRepository.getAll();
   }
 
   clearAll() {
-    Object.values(STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
-  }
-
-  getCollection(key) {
-    const value = localStorage.getItem(key);
-    return value ? JSON.parse(value) : [];
+    Object.values(STORAGE_KEYS).forEach(key => localStorageGateway.remove(key));
   }
 
   assertPlayer(player) {
-    if (!(player instanceof Player)) {
-      throw new TypeError('Players must be created with PlayerBuilder');
-    }
+    playerRepository.assertPlayer(player);
   }
 
   assertLocation(location) {
-    if (!(location instanceof Location)) {
-      throw new TypeError('Locations must be created with LocationBuilder');
-    }
+    locationRepository.assertLocation(location);
   }
 
   assertUniquePlayerName(name, players, ignoredPlayerId = null) {
-    if (players.some(player => player.id !== ignoredPlayerId && player.name === name)) {
-      throw new Error(`A player named "${name}" already exists`);
-    }
+    playerRepository.assertUniqueName(name, players, ignoredPlayerId);
   }
 
   saveSessionGraph({
@@ -307,53 +130,13 @@ class StorageService {
                      courts,
                      teams
                    }) {
-    const locations = this.getLocations();
-    const locationIndex = locations.findIndex(
-      candidate => candidate.id === location.id
-    );
-    if (locationIndex === -1) locations.push(location);
-    else locations[locationIndex] = location;
-
-    const storedRotations = this.getRotations();
-    const previousRotation = storedRotations.find(
-      candidate => candidate.id === rotation.id
-    );
-    const rotationIndex = storedRotations.findIndex(
-      candidate => candidate.id === rotation.id
-    );
-    if (rotationIndex === -1) storedRotations.push(rotation);
-    else storedRotations[rotationIndex] = rotation;
-
-    const replacedGameIds = new Set([
-      ...(previousRotation?.games.map(game => game.id) ?? []),
-      ...rotation.games.map(game => game.id)
-    ]);
-    const games = this.getGames().filter(
-      game => !replacedGameIds.has(game.id)
-    );
-
-    const replacedTeamIds = new Set([
-      ...(previousRotation?.games.flatMap(game => [
-        game.teamAId,
-        game.teamBId
-      ]) ?? []),
-      ...teams.map(team => team.id)
-    ]);
-    const storedTeams = this.getTeams().filter(
-      team => !replacedTeamIds.has(team.id)
-    );
-
-    this.saveCourts([
-      ...this.getCourts().filter(
-        court => court.locationId !== location.id
-      ),
-      ...courts
-    ]);
-    this.saveLocations(locations);
-    this.saveSession(session);
-    this.saveRotations(storedRotations);
-    this.saveGames([...games, ...rotation.games]);
-    this.saveTeams([...storedTeams, ...teams]);
+    sessionGraphPersistenceService.save({
+      location,
+      session,
+      rotation,
+      courts,
+      teams
+    });
   }
 
 }

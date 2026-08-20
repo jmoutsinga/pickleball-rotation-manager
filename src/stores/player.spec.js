@@ -245,6 +245,7 @@ describe('usePlayerStore', () => {
     const teamA = new Team(player, null, 'team-a')
     const teamB = new Team(null, null, 'team-b')
     const game = new Game({
+      number: 1,
       courtId: 'court-1',
       teamAId: teamA.id,
       teamBId: teamB.id,
