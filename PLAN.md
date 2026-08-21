@@ -13,12 +13,12 @@ Le cahier des charges détaillé, y compris la machine à états Session/Rotatio
 ### Situation actuelle
 
 - Étape active : **3 — Modèle, participants et structure de Manage Session**.
-- Tranche active : **3.21 — construire un Game par Court utilisable**.
-- État de la tranche : **à démarrer**.
-- Prochaine action : construire et numéroter une Game pour chaque Court utilisable de la Rotation, sans créer de Game sur les Courts marqués « Inutilisé ».
-- Dernière tranche terminée : **3.20.7 — composition complète avant démarrage d’une Rotation**.
-- Dernière validation applicative complète : **2026-08-20 22:54:20** — type-check, lint incluant Cypress, 302 tests Vitest, 19 scénarios Cypress, `git diff --check` et build Vite réussis après protection du démarrage par la composition complète de chaque Game.
-- Éléments anticipés : la persistance/restauration du graphe de 3.22 et les affectations manuelles de 4.4 sont partiellement implémentées.
+- Tranche active : **3.22 — garantir la persistance et la restauration du graphe complet**.
+- État de la tranche : **à reprendre après l’ajustement prioritaire 3.21.13 terminé**.
+- Prochaine action : auditer puis compléter la persistance atomique et la restauration du graphe Session/Rotations/Courts/Games/Teams/Players, y compris après rechargement et migration historique.
+- Dernière tranche terminée : **3.21.13 — neutraliser le rendu natif du fieldset de score**.
+- Dernière validation applicative complète : **2026-08-21 02:16:26** — type-check, lint incluant Cypress, 326 tests Vitest, 19 scénarios Cypress et build Vite réussis après validation du fieldset de score compact sur viewport portrait.
+- Éléments anticipés : la persistance/restauration du graphe de 3.22 et les affectations manuelles de 4.4 sont partiellement implémentées ; les points 5.8 et 5.9 sur Next Rotation et End Session sont terminés.
 - Marqueurs : `[x]` terminée ; `[==>]` en cours ; `[ ]` à faire.
 
 ### Feuille de route
@@ -34,12 +34,12 @@ Le cahier des charges détaillé, y compris la machine à états Session/Rotatio
 | 6 | Calcul de la Rotation suivante et modernisation de l’outillage | À faire | [Étape 6](docs/plan/ETAPE_06_ROTATION_SUIVANTE.md) |
 | 7 | SQLite | À faire | [Étape 7](docs/plan/ETAPE_07_SQLITE.md) |
 
-### Tranche active — 3.21
+### Tranche active — 3.22
 
-- [ ] Construire une Game pour chaque Court utilisable de la Rotation.
-- [ ] Numéroter les Games à l’échelle de la Session dans l’ordre Rotation puis Court.
-- [ ] Ne créer aucune Game sur les Courts excédentaires marqués « Inutilisé ».
-- [ ] Couvrir la construction, la numérotation et la restauration avant de passer à 3.22.
+- [ ] Auditer les frontières actuelles entre store Pinia, repositories et `SessionGraphPersistenceService`.
+- [ ] Garantir une écriture atomique du graphe complet sans collection indépendante de Games.
+- [ ] Restaurer toutes les Rotations d’une Session et sélectionner la Rotation courante d’ordre maximal sans perdre Courts, Teams, Games ni Players.
+- [ ] Couvrir les rechargements, migrations historiques et refus des graphes invalides avant la validation finale de l’étape 3.
 
 ### Politique documentaire
 

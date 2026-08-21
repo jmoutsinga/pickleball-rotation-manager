@@ -3,7 +3,7 @@ import { Game } from '@/models/Game'
 import { RotationService } from './RotationService'
 
 describe('RotationService', () => {
-  it('accepts all current Games and returns an empty first plan', () => {
+  it('creates an empty Game and two empty Teams for every current Court', () => {
     const currentGames = [new Game({
       number: 1,
       courtId: 'court-1',
@@ -16,9 +16,19 @@ describe('RotationService', () => {
     }, 'game-1')]
     const service = new RotationService()
 
-    const nextGames = service.planNextRotation(currentGames)
+    const plan = service.planNextRotation(currentGames)
 
-    expect(nextGames).toEqual([])
+    expect(plan.games).toHaveLength(1)
+    expect(plan.games[0]).toMatchObject({
+      number: 2,
+      courtId: 'court-1',
+      scoreTeamA: null,
+      scoreTeamB: null
+    })
+    expect(plan.teams).toHaveLength(2)
+    expect(plan.teams.every(team => team.players.length === 0)).toBe(true)
+    expect(plan.games[0].teamAId).toBe(plan.teams[0].id)
+    expect(plan.games[0].teamBId).toBe(plan.teams[1].id)
     expect(currentGames).toHaveLength(1)
   })
 })

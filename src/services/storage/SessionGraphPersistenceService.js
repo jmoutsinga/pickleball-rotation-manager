@@ -1,4 +1,4 @@
-import { Court, validateSessionGraph } from '@/models'
+import { Court, RotationStatus, validateSessionGraph } from '@/models'
 import courtRepository from './CourtRepository'
 import locationRepository from './LocationRepository'
 import rotationGameNumberMigration from './RotationGameNumberMigration'
@@ -23,7 +23,18 @@ export class SessionGraphPersistenceService {
     this.teams = teams
   }
 
-  save({ location, session, rotation, courts, teams }) {
+  save({
+    location,
+    session,
+    rotation,
+    courts,
+    teams,
+    discardRotation = false
+  }) {
+    if (discardRotation && rotation.status !== RotationStatus.CREATED) {
+      throw new Error('Only a created Rotation can be discarded')
+    }
+
     const mergedLocations = this.mergeById(
       this.locations.getAll(),
       [location]
@@ -32,7 +43,9 @@ export class SessionGraphPersistenceService {
     const previousRotation = storedRotations.find(
       candidate => candidate.id === rotation.id
     )
-    const mergedRotations = this.mergeById(storedRotations, [rotation])
+    const mergedRotations = discardRotation
+      ? storedRotations.filter(candidate => candidate.id !== rotation.id)
+      : this.mergeById(storedRotations, [rotation])
     const replacedTeamIds = new Set([
       ...(previousRotation?.games.flatMap(game => [
         game.teamAId,
@@ -40,10 +53,19 @@ export class SessionGraphPersistenceService {
       ]) ?? []),
       ...teams.map(team => team.id)
     ])
-    const mergedTeams = [
-      ...this.teams.getAll().filter(team => !replacedTeamIds.has(team.id)),
-      ...teams
-    ]
+    const retainedTeamIds = new Set(mergedRotations.flatMap(candidate =>
+      candidate.games.flatMap(game => [game.teamAId, game.teamBId])
+    ))
+    const mergedTeams = discardRotation
+      ? this.teams.getAll().filter(team =>
+          !replacedTeamIds.has(team.id) || retainedTeamIds.has(team.id)
+        )
+      : [
+          ...this.teams.getAll().filter(team =>
+            !replacedTeamIds.has(team.id)
+          ),
+          ...teams
+        ]
     const mergedCourts = this.mergeById(this.courts.getAll(), courts)
 
     validateSessionGraph({

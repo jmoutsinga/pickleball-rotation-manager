@@ -62,6 +62,38 @@ function createGraph() {
   return { location, session, rotations, courts, teams }
 }
 
+function appendEmptyNextRotation(
+  graph: ReturnType<typeof createGraph>,
+  waitingPlayers = [...graph.session.attendingPlayers]
+): Rotation {
+  const teams = graph.courts.flatMap((court, index) => [
+    new Team(null, null, `next-team-${index + 1}-a`),
+    new Team(null, null, `next-team-${index + 1}-b`)
+  ])
+  const games = graph.courts.map((court, index) => new Game({
+    number: graph.rotations[0].games.length + index + 1,
+    courtId: court.id,
+    teamAId: teams[index * 2].id,
+    teamBId: teams[index * 2 + 1].id,
+    scoreTeamA: null,
+    scoreTeamB: null,
+    winnerTeam: null,
+    loserTeam: null
+  }, `next-game-${index + 1}`))
+  const rotation = new Rotation(
+    graph.session.id,
+    2,
+    games,
+    waitingPlayers,
+    'rotation-2',
+    RotationStatus.CREATED
+  )
+
+  graph.teams.push(...teams)
+  graph.rotations.push(rotation)
+  return rotation
+}
+
 describe('validateSessionGraph', () => {
   it('requires exactly two Players in both Teams of every Game', () => {
     const graph = createGraph()
@@ -173,7 +205,7 @@ describe('validateSessionGraph', () => {
       .toThrow('Started Session "session-1" requires 2 Games in each Rotation')
   })
 
-  it('accepts an empty CREATED placeholder after a completed Rotation', () => {
+  it('rejects an empty CREATED Rotation after a completed Rotation', () => {
     const graph = createGraph()
     graph.rotations.push(new Rotation(
       graph.session.id,
@@ -184,19 +216,20 @@ describe('validateSessionGraph', () => {
       RotationStatus.CREATED
     ))
 
+    expect(() => validateSessionGraph(graph))
+      .toThrow('Started Session "session-1" requires 2 Games in each Rotation')
+  })
+
+  it('accepts empty Teams on every usable Court in the next Rotation', () => {
+    const graph = createGraph()
+    appendEmptyNextRotation(graph)
+
     expect(() => validateSessionGraph(graph)).not.toThrow()
   })
 
-  it('requires every attendee to wait in an empty next Rotation placeholder', () => {
+  it('requires every attendee to wait when next Rotation Teams are empty', () => {
     const graph = createGraph()
-    graph.rotations.push(new Rotation(
-      graph.session.id,
-      2,
-      [],
-      graph.session.attendingPlayers.slice(1),
-      'rotation-2',
-      RotationStatus.CREATED
-    ))
+    appendEmptyNextRotation(graph, graph.session.attendingPlayers.slice(1))
 
     expect(() => validateSessionGraph(graph))
       .toThrow('Player "player-1" is not assigned in Rotation "rotation-2"')

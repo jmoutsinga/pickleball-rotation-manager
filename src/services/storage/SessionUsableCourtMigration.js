@@ -4,7 +4,6 @@ import {
   Rotation,
   SessionStatus,
   Team,
-  isEmptyNextRotationPlaceholder,
   validateSessionGraph
 } from '@/models'
 import { ApplicationError, ErrorCode } from '@/errors/ApplicationError'
@@ -152,11 +151,6 @@ export class SessionUsableCourtMigration {
       .sort((left, right) => left.order - right.order)
 
     sessionRotations.forEach(rotation => {
-      if (isEmptyNextRotationPlaceholder(rotation)) {
-        normalizedByRotationId.set(rotation.id, rotation)
-        return
-      }
-
       const orderedGames = [...rotation.games].sort(
         (left, right) =>
           (courtNumbersById.get(left.courtId) ?? Number.MAX_SAFE_INTEGER) -

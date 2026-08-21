@@ -133,14 +133,16 @@ class StorageService {
                      session,
                      rotation,
                      courts,
-                     teams
+                     teams,
+                     discardRotation = false
                    }) {
     sessionGraphPersistenceService.save({
       location,
       session,
       rotation,
       courts,
-      teams
+      teams,
+      discardRotation
     });
   }
 

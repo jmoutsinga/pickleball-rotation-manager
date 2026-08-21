@@ -1,7 +1,6 @@
 import type { Court } from './Court'
 import type { Location } from './Location'
 import type { Rotation } from './Rotation'
-import { RotationStatus } from './RotationStatus'
 import type { Session } from './Session'
 import { SessionStatus } from './SessionStatus'
 import type { Team } from './Team'
@@ -61,10 +60,8 @@ export function validateSessionGraph(graph: SessionGraph): void {
   )
 
   sessionRotations.forEach(rotation => {
-    const isEmptyNextRotation = isEmptyNextRotationPlaceholder(rotation)
     if (
       session.status === SessionStatus.STARTED &&
-      !isEmptyNextRotation &&
       rotation.games.length !== usableCourtCount
     ) {
       throw new Error(
@@ -142,12 +139,6 @@ export function validateSessionGraph(graph: SessionGraph): void {
   })
 
   assertSequence(gameNumbers, 'Game numbers', session.id)
-}
-
-export function isEmptyNextRotationPlaceholder(rotation: Rotation): boolean {
-  return rotation.order > 1 &&
-    rotation.status === RotationStatus.CREATED &&
-    rotation.games.length === 0
 }
 
 export function isRotationLineupComplete(

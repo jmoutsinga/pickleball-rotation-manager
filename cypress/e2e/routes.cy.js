@@ -963,6 +963,9 @@ describe('Application routes', () => {
       })
     })
     cy.get('.rotation-card__start').should('be.visible')
+    cy.get('.manage-session__end')
+      .should('be.visible')
+      .and('not.be.disabled')
     cy.get('.rotation-card__stop').should('not.exist')
     cy.get('.courts-container').should('be.visible')
     cy.get('.court').should('have.length', 2)
@@ -1004,6 +1007,26 @@ describe('Application routes', () => {
     cy.get('.rotation-card__start').should('be.disabled')
     cy.get('.waiting-players .waiting').eq(0).trigger('dragstart')
     cy.get('.team-a .team-players').trigger('drop')
+    cy.get('.team-a .team-player').should('contain.text', 'player-2')
+    cy.get('.waiting-players .waiting').eq(0)
+      .should('contain.text', 'player-3')
+      .trigger('dragstart')
+    cy.get('.team-a .team-player').trigger('drop')
+    cy.get('.team-a .team-player').should('contain.text', 'player-3')
+    cy.get('.waiting-players .waiting').eq(0)
+      .should('contain.text', 'player-2')
+    cy.window().then(window => {
+      const teams = JSON.parse(
+        window.localStorage.getItem('pickleball_teams')
+      )
+      const [rotation] = JSON.parse(
+        window.localStorage.getItem('pickleball_rotations')
+      )
+
+      expect(teams.find(team => team.player1?.id === 'player-3'))
+        .not.to.equal(undefined)
+      expect(rotation.waitingPlayers[0].id).to.equal('player-2')
+    })
     cy.get('.waiting-players .waiting').eq(0).trigger('dragstart')
     cy.get('.team-a .team-players').trigger('drop')
     cy.get('.waiting-players .waiting').eq(0).trigger('dragstart')
@@ -1014,6 +1037,7 @@ describe('Application routes', () => {
     cy.get('.rotation-card__start').should('not.be.disabled').click()
     cy.get('.rotation-card__start').should('not.exist')
     cy.get('.rotation-card__stop').should('be.visible')
+    cy.get('.manage-session__end').should('be.disabled')
     cy.window().then(window => {
       const [rotation] = JSON.parse(
         window.localStorage.getItem('pickleball_rotations')
@@ -1027,28 +1051,199 @@ describe('Application routes', () => {
     cy.get('.rotation-card__start').should('not.exist')
     cy.get('.rotation-card__stop').should('not.exist')
     cy.get('.rotation-card__next').should('be.visible').and('be.disabled')
+    cy.get('.manage-session__end').should('be.disabled')
+    cy.contains('.game-card h4', 'Game N°1').should('be.visible')
+    cy.get('.game-card')
+      .should('have.class', 'game-card--editing')
+      .and('have.css', 'background-color', 'rgb(255, 240, 217)')
+    cy.get('.team-a h5, .team-b h5')
+      .should('have.length', 2)
+      .and('have.css', 'text-align', 'center')
+      .and('have.css', 'padding-left', '0px')
+      .and('have.css', 'padding-right', '0px')
+    cy.get('[aria-label="Score Team A"]')
+      .should('be.visible')
+      .and('not.be.disabled')
+      .and('have.css', 'text-align', 'center')
+      .then($input => {
+        expect($input[0].getBoundingClientRect().width).to.be.lessThan(40)
+      })
+      .type('9')
+    cy.get('[aria-label="Score Team B"]')
+      .should('be.visible')
+      .and('not.be.disabled')
+      .type('8')
+    cy.get('[aria-label="Increase score Team B"]')
+      .should('not.be.disabled')
+      .click()
+    cy.get('[aria-label="Score Team B"]').should('have.value', '9')
+    cy.get('[aria-label="Decrease score Team B"]').click()
+    cy.get('[aria-label="Score Team B"]').should('have.value', '8')
+    cy.get('[aria-label="Increase score Team B"]').click()
+    cy.get('[aria-label="Score Team B"]').should('have.value', '9')
+    cy.get('[aria-label="Validate score for Game 1"]')
+      .should('not.be.disabled')
+      .click()
+
+    cy.get('.game-card')
+      .should('not.have.class', 'game-card--editing')
+      .and('have.css', 'background-color', 'rgb(255, 255, 255)')
+    cy.get('.game-card__winner-question').should('contain.text', 'WINNER ?')
+    cy.get('.game-card__check').should('not.exist')
+    cy.get('[aria-label="Score Team A"]').should('be.disabled')
+    cy.get('[aria-label="Score Team B"]').should('be.disabled')
+    cy.get('[aria-label="Decrease score Team A"]').should('be.disabled')
+    cy.get('[aria-label="Increase score Team A"]').should('be.disabled')
+    cy.get('[aria-label="Edit score for Game 1"]').should('be.visible')
+    cy.get('.rotation-card__next').should('be.disabled')
+
+    cy.get('.team-a')
+      .trigger('mouseenter')
+    cy.get('.team-a')
+      .should('have.class', 'team--winner-hovered')
+      .and('have.css', 'background-color', 'rgb(226, 229, 232)')
+    cy.get('.team-a')
+      .trigger('mouseleave')
+    cy.get('.team-a')
+      .should('not.have.class', 'team--winner-hovered')
+      .and('have.css', 'background-color', 'rgb(255, 255, 255)')
+
+    cy.get('.team-b').click('top')
+    cy.get('.game-card__winner-question').should('not.exist')
+    cy.get('.game-card__check').should('be.visible')
+    cy.get('.game-card')
+      .should('have.class', 'game-card--resolved')
+      .and('have.css', 'background-color', 'rgb(229, 247, 238)')
+    cy.get('.team-b')
+      .should('have.class', 'team--winner')
+      .and('have.css', 'border-color', 'rgb(255, 70, 0)')
+      .and('have.css', 'border-width', '4px')
+      .find('.team__result-badge')
+      .should('contain.text', 'W')
+      .and('have.css', 'left', '8px')
+      .and('have.css', 'color', 'rgb(255, 70, 0)')
+    cy.get('.team-a')
+      .should('have.class', 'team--loser')
+      .and('have.css', 'border-color', 'rgb(138, 147, 155)')
+      .and('have.css', 'border-width', '2px')
+      .find('.team__result-badge')
+      .should('contain.text', 'L')
+      .and('have.css', 'right', '8px')
+      .and('have.css', 'color', 'rgb(138, 147, 155)')
+    cy.get('.rotation-card__next').should('not.be.disabled')
+    cy.get('.manage-session__end').should('not.be.disabled')
+
     cy.window().then(window => {
       const [rotation] = JSON.parse(
         window.localStorage.getItem('pickleball_rotations')
       )
 
       expect(rotation.status).to.equal('SCORING')
-      rotation.games[0].scoreTeamA = 11
-      rotation.games[0].scoreTeamB = 7
-      rotation.games[0].winnerTeam = rotation.games[0].teamAId
-      rotation.games[0].loserTeam = rotation.games[0].teamBId
-      window.localStorage.setItem(
-        'pickleball_rotations',
-        JSON.stringify([rotation])
-      )
+      expect(rotation.games[0].scoreTeamA).to.equal(9)
+      expect(rotation.games[0].scoreTeamB).to.equal(9)
+      expect(rotation.games[0].winnerTeam)
+        .to.equal(rotation.games[0].teamBId)
+      expect(rotation.games[0].loserTeam)
+        .to.equal(rotation.games[0].teamAId)
     })
 
+    cy.get('[aria-label="Edit score for Game 1"]').click()
+    cy.get('.manage-session__end').should('be.disabled')
+    cy.get('.game-card')
+      .should('have.class', 'game-card--editing')
+      .and('have.css', 'background-color', 'rgb(255, 240, 217)')
+    cy.get('.game-card__check').should('not.exist')
+    cy.get('.team-a').should('not.have.class', 'team--loser')
+    cy.get('.team-b').should('not.have.class', 'team--winner')
+    cy.get('[aria-label="Decrease score Team A"]')
+      .should('not.be.disabled')
+    cy.get('[aria-label="Increase score Team A"]')
+      .should('not.be.disabled')
+    cy.get('[aria-label="Score Team A"]')
+      .should('not.be.disabled')
+      .and('have.value', '9')
+    cy.get('[aria-label="Validate score for Game 1"]').click()
+    cy.get('.game-card__winner-question').should('contain.text', 'WINNER ?')
+    cy.get('.game-card__check').should('not.exist')
+    cy.get('.rotation-card__next').should('be.disabled')
+    cy.window().then(window => {
+      const [rotation] = JSON.parse(
+        window.localStorage.getItem('pickleball_rotations')
+      )
+
+      expect(rotation.games[0].scoreTeamA).to.equal(9)
+      expect(rotation.games[0].scoreTeamB).to.equal(9)
+      expect(rotation.games[0].winnerTeam).to.be.null
+      expect(rotation.games[0].loserTeam).to.be.null
+    })
+    cy.get('.team-b').click('top')
+    cy.get('.game-card__winner-question').should('not.exist')
+    cy.get('.game-card__check').should('be.visible')
+    cy.get('.rotation-card__next').should('not.be.disabled')
+    cy.get('.manage-session__end').should('not.be.disabled')
+
+    cy.get('[aria-label="Edit score for Game 1"]').click()
+    cy.get('[aria-label="Score Team A"]')
+      .should('not.be.disabled')
+      .and('have.value', '9')
+      .clear()
+    cy.get('[aria-label="Score Team A"]').type('11')
+    cy.get('[aria-label="Score Team B"]')
+      .should('not.be.disabled')
+      .and('have.value', '9')
+      .clear()
+    cy.get('[aria-label="Score Team B"]').type('7')
+    cy.get('.rotation-card__next').should('be.disabled')
+    cy.window().then(window => {
+      const [rotation] = JSON.parse(
+        window.localStorage.getItem('pickleball_rotations')
+      )
+
+      expect(rotation.games[0].scoreTeamA).to.equal(9)
+      expect(rotation.games[0].scoreTeamB).to.equal(9)
+      expect(rotation.games[0].winnerTeam)
+        .to.equal(rotation.games[0].teamBId)
+    })
+    cy.get('[aria-label="Validate score for Game 1"]').click()
+    cy.get('.game-card__check').should('be.visible')
+    cy.get('.game-card')
+      .should('have.class', 'game-card--resolved')
+      .and('have.css', 'background-color', 'rgb(229, 247, 238)')
+    cy.get('.team-a')
+      .should('have.class', 'team--winner')
+      .and('have.css', 'border-color', 'rgb(255, 70, 0)')
+      .and('have.css', 'border-width', '4px')
+      .find('.team__result-badge')
+      .should('contain.text', 'W')
+      .and('have.css', 'right', '8px')
+    cy.get('.team-b')
+      .should('have.class', 'team--loser')
+      .and('have.css', 'border-color', 'rgb(138, 147, 155)')
+      .and('have.css', 'border-width', '2px')
+      .find('.team__result-badge')
+      .should('contain.text', 'L')
+      .and('have.css', 'left', '8px')
+    cy.get('.rotation-card__next').should('not.be.disabled')
+
     cy.reload()
+    cy.get('.game-card__check').should('be.visible')
+    cy.get('.game-card')
+      .should('have.css', 'background-color', 'rgb(229, 247, 238)')
+    cy.get('[aria-label="Score Team A"]')
+      .should('be.disabled')
+      .and('have.value', '11')
+    cy.get('[aria-label="Score Team B"]')
+      .should('be.disabled')
+      .and('have.value', '7')
     cy.get('.rotation-card__next').should('not.be.disabled').click()
     cy.contains('h3', 'Rotation N° 2').should('be.visible')
     cy.get('.rotation-card__next').should('not.exist')
     cy.get('.rotation-card__start').should('be.visible').and('be.disabled')
-    cy.get('.court--unused').should('have.length', 2)
+    cy.get('.manage-session__end').should('not.be.disabled')
+    cy.get('.game-card').should('have.length', 1)
+    cy.get('.team-a .team-player, .team-b .team-player').should('not.exist')
+    cy.get('.court:not(.court--unused)').should('have.length', 1)
+    cy.get('.court--unused').should('have.length', 1)
     cy.get('.waiting-players .waiting').should('have.length', 4)
     cy.window().then(window => {
       const rotations = JSON.parse(
@@ -1060,9 +1255,140 @@ describe('Application routes', () => {
       expect(currentRotation.status).to.equal('FINISHED')
       expect(currentRotation.endTime).to.be.a('string')
       expect(nextRotation.status).to.equal('CREATED')
-      expect(nextRotation.games).to.deep.equal([])
+      expect(nextRotation.games).to.have.length(1)
+      expect(nextRotation.games[0].number).to.equal(2)
+      expect(nextRotation.games[0].courtId)
+        .to.equal(currentRotation.games[0].courtId)
       expect(nextRotation.waitingPlayers.map(player => player.id))
         .to.deep.equal(['player-2', 'player-3', 'player-4', 'player-1'])
+    })
+
+    cy.viewport(390, 844)
+    cy.get('.waiting-players .waiting').eq(0).then(source => {
+      const sourceRect = source[0].getBoundingClientRect()
+
+      cy.wrap(source).trigger('pointerdown', {
+        eventConstructor: 'PointerEvent',
+        pointerType: 'touch',
+        pointerId: 21,
+        isPrimary: true,
+        clientX: sourceRect.left + sourceRect.width / 2,
+        clientY: sourceRect.top + sourceRect.height / 2,
+        force: true
+      })
+    })
+    cy.get('.team-a .team-players').then(target => {
+      const targetRect = target[0].getBoundingClientRect()
+      const clientX = targetRect.left + targetRect.width / 2
+      const clientY = targetRect.top + targetRect.height / 2
+
+      cy.get('.rotation-card').trigger('pointermove', {
+        eventConstructor: 'PointerEvent',
+        pointerType: 'touch',
+        pointerId: 21,
+        isPrimary: true,
+        clientX,
+        clientY,
+        force: true
+      })
+      cy.get('.rotation-card').trigger('pointerup', {
+        eventConstructor: 'PointerEvent',
+        pointerType: 'touch',
+        pointerId: 21,
+        isPrimary: true,
+        clientX,
+        clientY,
+        force: true
+      })
+    })
+    cy.get('.team-a .team-player').should('have.length', 1)
+    cy.get('.waiting-players .waiting').should('have.length', 3)
+
+    cy.get('.waiting-players .waiting').eq(0).then(source => {
+      const sourceRect = source[0].getBoundingClientRect()
+
+      cy.wrap(source).trigger('pointerdown', {
+        eventConstructor: 'PointerEvent',
+        pointerType: 'touch',
+        pointerId: 22,
+        isPrimary: true,
+        clientX: sourceRect.left + sourceRect.width / 2,
+        clientY: sourceRect.top + sourceRect.height / 2,
+        force: true
+      })
+    })
+    cy.get('.team-a .team-player').then(target => {
+      const targetRect = target[0].getBoundingClientRect()
+      const clientX = targetRect.left + targetRect.width / 2
+      const clientY = targetRect.top + targetRect.height / 2
+
+      cy.get('.rotation-card').trigger('pointerup', {
+        eventConstructor: 'PointerEvent',
+        pointerType: 'touch',
+        pointerId: 22,
+        isPrimary: true,
+        clientX,
+        clientY,
+        force: true
+      })
+    })
+    cy.get('.team-a .team-player').should('contain.text', 'player-3')
+    cy.get('.waiting-players .waiting').eq(0)
+      .should('contain.text', 'player-2')
+
+    cy.get('.waiting-players .waiting').eq(0).trigger('dragstart')
+    cy.get('.team-a .team-players').trigger('drop')
+    cy.get('.waiting-players .waiting').eq(0).trigger('dragstart')
+    cy.get('.team-b .team-players').trigger('drop')
+    cy.get('.waiting-players .waiting').eq(0).trigger('dragstart')
+    cy.get('.team-b .team-players').trigger('drop')
+    cy.get('.rotation-card__start').should('not.be.disabled').click()
+    cy.get('.rotation-card__stop').should('be.visible').click()
+    cy.get('.manage-session__end').should('be.disabled')
+    cy.get('.game-card').should('have.class', 'game-card--editing')
+    cy.get('.team__score')
+      .should('have.length', 2)
+      .and('not.be.disabled')
+    cy.get('fieldset.team__score-control')
+      .should('have.length', 2)
+      .each(scoreControl => {
+        const style = getComputedStyle(scoreControl[0])
+        const bounds = scoreControl[0].getBoundingClientRect()
+        const teamBounds = scoreControl[0]
+          .closest('.team')
+          .getBoundingClientRect()
+
+        expect(style.display).to.equal('flex')
+        expect(style.minWidth).to.equal('0px')
+        expect(style.borderTopWidth).to.equal('0px')
+        expect(style.paddingTop).to.equal('0px')
+        expect(bounds.height, 'compact score fieldset height')
+          .to.be.closeTo(36, 1)
+        expect(bounds.width, 'score fieldset stays inside its TeamCard')
+          .to.be.at.most(teamBounds.width)
+      })
+    cy.get('.game-card__score-action')
+      .should('have.class', 'game-card__score-action--ok')
+    cy.get('[aria-label="Score Team A"]').type('11')
+    cy.get('[aria-label="Score Team B"]').type('7')
+    cy.get('[aria-label="Validate score for Game 2"]').click()
+    cy.get('.manage-session__end').should('not.be.disabled').click()
+    cy.location('pathname').should('eq', '/')
+    cy.contains('h1', 'Pickleball Training Session Manager')
+      .should('be.visible')
+    cy.window().then(window => {
+      const [session] = JSON.parse(
+        window.localStorage.getItem('pickleball_sessions')
+      )
+      const rotations = JSON.parse(
+        window.localStorage.getItem('pickleball_rotations')
+      )
+
+      expect(session.status).to.equal('FINISHED')
+      expect(session.endTime).to.be.a('string')
+      expect(rotations).to.have.length(2)
+      expect(rotations.every(rotation => rotation.status === 'FINISHED'))
+        .to.equal(true)
     })
   })
 })

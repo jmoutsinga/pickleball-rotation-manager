@@ -77,6 +77,7 @@ export const useSessionStore = defineStore('session', {
                     id: court.id,
                     number: court.number,
                     isUsable,
+                    game: isUsable ? game : null,
                     teams: isUsable ? { A: teamA, B: teamB } : null
                 }
             })
@@ -576,7 +577,7 @@ export const useSessionStore = defineStore('session', {
 
             const currentRotation = this.rotation
             currentRotation.finish(at)
-            const nextGames = rotationService.planNextRotation(
+            const nextPlan = rotationService.planNextRotation(
                 currentRotation.games
             )
 
@@ -589,17 +590,65 @@ export const useSessionStore = defineStore('session', {
             const nextRotation = new Rotation(
                 this.session.id,
                 this.session.getNextRotationOrder(storedRotations),
-                nextGames,
+                nextPlan.games,
                 [...this.players]
             )
 
             this.rotation = nextRotation
-            this.teams = []
+            this.teams = nextPlan.teams
 
             storageService.updatePlayers(this.players)
             storageService.saveSessionGraph(this)
 
             return nextRotation
+        },
+
+        endSession(at = new Date()) {
+            if (!this.location || !this.session || !this.rotation) {
+                throw new Error('No session Rotation is loaded')
+            }
+            if (this.session.status !== SessionStatus.STARTED) {
+                throw new Error('Only a started Session can be ended')
+            }
+
+            const discardRotation =
+                this.rotation.status === RotationStatus.CREATED
+            const finishResolvedRotation =
+                this.rotation.status === RotationStatus.SCORING &&
+                this.rotation.games.length > 0 &&
+                this.rotation.games.every(game => game.isResolved)
+
+            if (!discardRotation && !finishResolvedRotation) {
+                throw new Error(
+                    'Session can only end before a Rotation starts or after all scores are resolved'
+                )
+            }
+
+            if (finishResolvedRotation) {
+                this.rotation.finish(at)
+            }
+            this.session.finish(at)
+            this.players.forEach(player =>
+                player.changeStatus(PlayerStatus.AVAILABLE)
+            )
+
+            storageService.saveSessionGraph({
+                location: this.location,
+                session: this.session,
+                rotation: this.rotation,
+                courts: this.courts,
+                teams: this.teams,
+                discardRotation
+            })
+            storageService.updatePlayers(this.players)
+            this.sessions = storageService.getSessions()
+
+            if (discardRotation) {
+                this.rotation = null
+                this.teams = []
+            }
+
+            return this.session
         },
 
         setCourts(numCourts) {
@@ -786,6 +835,74 @@ export const useSessionStore = defineStore('session', {
             } else {
                 this.rotation.waitingPlayers.push(player)
             }
+
+            storageService.saveSessionGraph(this)
+        },
+
+        swapPlayers({ playerId, targetPlayerId }) {
+            if (this.rotation?.status !== RotationStatus.CREATED) return
+            if (playerId === targetPlayerId) return
+
+            const player = this.players.find(
+                candidate => candidate.id === playerId
+            )
+            const targetPlayer = this.players.find(
+                candidate => candidate.id === targetPlayerId
+            )
+
+            if (!player || !targetPlayer) return
+
+            const waitingPlayers = [...this.rotation.waitingPlayers]
+            const findPlacement = searchedPlayerId => {
+                const waitingIndex = waitingPlayers.findIndex(
+                    candidate => candidate.id === searchedPlayerId
+                )
+                if (waitingIndex !== -1) {
+                    return { type: 'waiting', index: waitingIndex }
+                }
+
+                for (const team of this.teams) {
+                    if (team.player1?.id === searchedPlayerId) {
+                        return { type: 'team', team, slot: 'player1' }
+                    }
+                    if (team.player2?.id === searchedPlayerId) {
+                        return { type: 'team', team, slot: 'player2' }
+                    }
+                }
+
+                return null
+            }
+            const playerPlacement = findPlacement(playerId)
+            const targetPlacement = findPlacement(targetPlayerId)
+
+            if (!playerPlacement || !targetPlacement) return
+
+            const teamLineups = new Map()
+            const replaceAt = (placement, replacement) => {
+                if (placement.type === 'waiting') {
+                    waitingPlayers[placement.index] = replacement
+                    return
+                }
+
+                const lineup = teamLineups.get(placement.team.id) ?? {
+                    team: placement.team,
+                    player1: placement.team.player1,
+                    player2: placement.team.player2
+                }
+                lineup[placement.slot] = replacement
+                teamLineups.set(placement.team.id, lineup)
+            }
+
+            replaceAt(playerPlacement, targetPlayer)
+            replaceAt(targetPlacement, player)
+
+            teamLineups.forEach(lineup => {
+                lineup.team.replaceLineup(
+                    lineup.player1,
+                    lineup.player2
+                )
+            })
+            this.rotation.waitingPlayers = waitingPlayers
 
             storageService.saveSessionGraph(this)
         }

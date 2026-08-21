@@ -74,16 +74,16 @@ describe('Game', () => {
     expect(game.loserTeam).toBe('team-a')
   })
 
-  it('preserves a manual winner when the same tied score is submitted again', () => {
+  it('clears a manual winner when the same tied score is submitted again', () => {
     const game = Game.fromJson(gameJson(1))
     game.recordScore(8, 8)
     game.designateWinner('team-a')
 
     game.recordScore(8, 8)
 
-    expect(game.winnerTeam).toBe('team-a')
-    expect(game.loserTeam).toBe('team-b')
-    expect(game.isResolved).toBe(true)
+    expect(game.winnerTeam).toBeNull()
+    expect(game.loserTeam).toBeNull()
+    expect(game.isResolved).toBe(false)
   })
 
   it('clears a manual winner when a tied score changes to another tie', () => {

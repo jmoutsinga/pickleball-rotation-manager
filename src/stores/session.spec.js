@@ -516,6 +516,99 @@ describe('useSessionStore', () => {
       .toBe(PlayerStatus.AVAILABLE)
   })
 
+  it('swaps exact Team slots and waiting-list positions before start', async () => {
+    const store = useSessionStore()
+    const players = await startPreparedSession(store, 8)
+    store.setCourts(2)
+    const firstCourtTeamA = store.teams[0]
+    const secondCourtTeamA = store.teams[2]
+
+    store.movePlayer({
+      playerId: players[0].id,
+      targetTeamId: firstCourtTeamA.id
+    })
+    store.movePlayer({
+      playerId: players[1].id,
+      targetTeamId: firstCourtTeamA.id
+    })
+    store.movePlayer({
+      playerId: players[2].id,
+      targetTeamId: secondCourtTeamA.id
+    })
+    store.movePlayer({
+      playerId: players[3].id,
+      targetTeamId: secondCourtTeamA.id
+    })
+
+    store.swapPlayers({
+      playerId: players[0].id,
+      targetPlayerId: players[2].id
+    })
+
+    expect([
+      firstCourtTeamA.player1.id,
+      firstCourtTeamA.player2.id
+    ]).toEqual([players[2].id, players[1].id])
+    expect([
+      secondCourtTeamA.player1.id,
+      secondCourtTeamA.player2.id
+    ]).toEqual([players[0].id, players[3].id])
+
+    store.swapPlayers({
+      playerId: players[4].id,
+      targetPlayerId: players[1].id
+    })
+    store.swapPlayers({
+      playerId: players[2].id,
+      targetPlayerId: players[4].id
+    })
+    store.swapPlayers({
+      playerId: players[5].id,
+      targetPlayerId: players[7].id
+    })
+
+    expect([
+      firstCourtTeamA.player1.id,
+      firstCourtTeamA.player2.id
+    ]).toEqual([players[4].id, players[2].id])
+    expect(store.rotation.waitingPlayers.map(player => player.id)).toEqual([
+      players[1].id,
+      players[7].id,
+      players[6].id,
+      players[5].id
+    ])
+
+    const persistedTeam = storageService.getTeams().find(
+      team => team.id === firstCourtTeamA.id
+    )
+    expect([
+      persistedTeam.player1.id,
+      persistedTeam.player2.id
+    ]).toEqual([players[4].id, players[2].id])
+    expect(storageService.getRotations()[0].waitingPlayers
+      .map(player => player.id)).toEqual([
+      players[1].id,
+      players[7].id,
+      players[6].id,
+      players[5].id
+    ])
+  })
+
+  it('refuses to swap Players after the Rotation has started', async () => {
+    const store = useSessionStore()
+    await startPreparedSession(store)
+    startReadyRotation(store)
+    const team = store.teams[0]
+    const originalLineup = [team.player1.id, team.player2.id]
+
+    store.swapPlayers({
+      playerId: team.player1.id,
+      targetPlayerId: team.player2.id
+    })
+
+    expect([team.player1.id, team.player2.id]).toEqual(originalLineup)
+  })
+
   it('keeps a removed team player AVAILABLE before start', async () => {
     const store = useSessionStore()
     const [player] = await startPreparedSession(store)
@@ -609,7 +702,39 @@ describe('useSessionStore', () => {
       .toBe(RotationStatus.SCORING)
   })
 
-  it('finishes the resolved Rotation and persists an empty next plan', async () => {
+  it('persists a tied Game as unresolved when equal scores are resubmitted', async () => {
+    const store = useSessionStore()
+    await startPreparedSession(store)
+    startReadyRotation(store, new Date('2026-08-16T10:05:00.000Z'))
+    store.startRotationScoring()
+    const game = store.rotation.games[0]
+
+    store.updateGameScore({
+      gameId: game.id,
+      scoreTeamA: 9,
+      scoreTeamB: 9
+    })
+    store.designateGameWinner({
+      gameId: game.id,
+      winnerTeamId: game.teamBId
+    })
+    expect(game.isResolved).toBe(true)
+
+    store.updateGameScore({
+      gameId: game.id,
+      scoreTeamA: 9,
+      scoreTeamB: 9
+    })
+
+    const persistedGame = storageService.getRotations()[0].games[0]
+    expect(game.isResolved).toBe(false)
+    expect(game.winnerTeam).toBeNull()
+    expect(game.loserTeam).toBeNull()
+    expect(persistedGame.winnerTeam).toBeNull()
+    expect(persistedGame.loserTeam).toBeNull()
+  })
+
+  it('finishes the resolved Rotation and persists empty Games for the next plan', async () => {
     const store = useSessionStore()
     const players = await startPreparedSession(store)
     const locationId = store.location.id
@@ -630,10 +755,18 @@ describe('useSessionStore', () => {
     expect(persistedCurrent.endTime).toEqual(endTime)
     expect(nextRotation.order).toBe(2)
     expect(nextRotation.status).toBe(RotationStatus.CREATED)
-    expect(nextRotation.games).toEqual([])
+    expect(nextRotation.games).toHaveLength(1)
+    expect(nextRotation.games[0]).toMatchObject({
+      number: 2,
+      courtId: store.courts[0].id,
+      scoreTeamA: null,
+      scoreTeamB: null
+    })
     expect(nextRotation.waitingPlayers.map(player => player.id))
       .toEqual(players.map(player => player.id))
-    expect(store.teams).toEqual([])
+    expect(store.teams).toHaveLength(2)
+    expect(store.teams.every(team => team.players.length === 0)).toBe(true)
+    expect(store.canStartRotation).toBe(false)
     expect(persistedRotations).toHaveLength(2)
 
     disposePinia(pinia)
@@ -643,9 +776,81 @@ describe('useSessionStore', () => {
     await restoredStore.ensureSession({ locationId, sessionId })
 
     expect(restoredStore.rotation.order).toBe(2)
-    expect(restoredStore.rotation.games).toEqual([])
+    expect(restoredStore.rotation.games).toHaveLength(1)
+    expect(restoredStore.rotation.games[0].number).toBe(2)
     expect(restoredStore.rotation.waitingPlayers.map(player => player.id))
       .toEqual(players.map(player => player.id))
+    expect(restoredStore.teams).toHaveLength(2)
+    expect(restoredStore.teams.every(team => team.players.length === 0))
+      .toBe(true)
+  })
+
+  it('finishes a resolved Rotation and its Session without planning another one', async () => {
+    const store = useSessionStore()
+    const players = await startPreparedSession(store)
+    const rotationId = store.rotation.id
+    const endTime = new Date('2026-08-16T10:20:00.000Z')
+    startReadyRotation(store, new Date('2026-08-16T10:05:00.000Z'))
+    store.startRotationScoring()
+    resolveRotationScores(store)
+
+    store.endSession(endTime)
+
+    expect(store.rotation.status).toBe(RotationStatus.FINISHED)
+    expect(store.rotation.endTime).toEqual(endTime)
+    expect(store.session.status).toBe(SessionStatus.FINISHED)
+    expect(store.session.endTime).toEqual(endTime)
+    expect(storageService.getRotations().map(rotation => rotation.id))
+      .toEqual([rotationId])
+    expect(storageService.getRotations()[0].status)
+      .toBe(RotationStatus.FINISHED)
+    expect(storageService.getSessions()[0].status)
+      .toBe(SessionStatus.FINISHED)
+    expect(players.every(player => player.status === PlayerStatus.AVAILABLE))
+      .toBe(true)
+    expect(storageService.getPlayers().every(
+      player => player.status === PlayerStatus.AVAILABLE
+    )).toBe(true)
+  })
+
+  it('discards the planned CREATED Rotation when ending the Session', async () => {
+    const store = useSessionStore()
+    await startPreparedSession(store)
+    const firstRotationId = store.rotation.id
+    startReadyRotation(store, new Date('2026-08-16T10:05:00.000Z'))
+    store.startRotationScoring()
+    resolveRotationScores(store)
+    const nextRotation = store.planNextRotation(
+      new Date('2026-08-16T10:20:00.000Z')
+    )
+    const discardedTeamIds = new Set(store.teams.map(team => team.id))
+
+    store.endSession(new Date('2026-08-16T10:25:00.000Z'))
+
+    expect(store.session.status).toBe(SessionStatus.FINISHED)
+    expect(store.rotation).toBeNull()
+    expect(store.teams).toEqual([])
+    expect(storageService.getRotations().map(rotation => rotation.id))
+      .toEqual([firstRotationId])
+    expect(storageService.getRotations().map(rotation => rotation.id))
+      .not.toContain(nextRotation.id)
+    expect(storageService.getTeams().some(team =>
+      discardedTeamIds.has(team.id)
+    )).toBe(false)
+  })
+
+  it.each([
+    RotationStatus.IN_PROGRESS,
+    RotationStatus.SCORING
+  ])('refuses to end the Session from an ineligible %s Rotation', async status => {
+    const store = useSessionStore()
+    await startPreparedSession(store)
+    advanceRotationTo(store, status)
+
+    expect(() => store.endSession()).toThrow(
+      'Session can only end before a Rotation starts or after all scores are resolved'
+    )
+    expect(store.session.status).toBe(SessionStatus.STARTED)
   })
 
   it('orchestrates and persists tied Game scoring', async () => {
