@@ -3,6 +3,7 @@
     <h3>Waiting Players</h3>
     <div
       class="waiting-players"
+      data-touch-waiting-target
       @dragover.prevent
       @drop.prevent="emit('player-drop', null)"
     >
@@ -10,15 +11,18 @@
         v-for="player in players"
         :key="player.id"
         class="player-card waiting"
+        :data-touch-player-id="player.id"
         draggable="true"
         @dragstart="startDrag($event, player.id)"
+        @dragover.prevent
+        @drop.stop.prevent="emit('player-swap', player.id)"
       >
         {{ player.name }}
         <button
           type="button"
           class="remove-btn"
           :aria-label="`Remove ${player.name} from waiting Players`"
-          @click="emit('remove-player', player.id)"
+          @click.stop="emit('remove-player', player.id)"
         >
           ×
         </button>
@@ -39,6 +43,7 @@ defineProps<{
 const emit = defineEmits<{
   'player-drag-start': [playerId: string]
   'player-drop': [targetTeamId: null]
+  'player-swap': [targetPlayerId: string]
   'remove-player': [playerId: string]
 }>()
 
@@ -76,6 +81,7 @@ function startDrag(event: DragEvent, playerId: string): void {
   justify-content: space-between;
   align-items: center;
   cursor: move;
+  touch-action: none;
   user-select: none;
 }
 

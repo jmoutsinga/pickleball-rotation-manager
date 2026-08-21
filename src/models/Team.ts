@@ -42,6 +42,15 @@ export class Team {
     if (this.player2?.id === playerId) this.player2 = null
   }
 
+  replaceLineup(player1: Player | null, player2: Player | null): void {
+    if (player1 && player2 && player1.id === player2.id) {
+      throw new Error('A team requires two different players')
+    }
+
+    this.player1 = player1
+    this.player2 = player2
+  }
+
   static fromJson(json: TeamJson): Team {
     return new Team(
       json.player1 ? PlayerBuilder.fromJson(json.player1) : null,

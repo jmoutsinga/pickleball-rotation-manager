@@ -18,6 +18,15 @@
       >
         Start Session
       </button>
+      <button
+        v-if="isSessionStarted"
+        type="button"
+        class="manage-session__end"
+        :disabled="!canEndSession"
+        @click="handleEndSession"
+      >
+        End Session
+      </button>
     </header>
 
     <SessionForm
@@ -36,17 +45,21 @@
       :courts="courts"
       :waiting-players="waitingPlayers"
       @move-player="movePlayer"
+      @swap-player="swapPlayers"
       @remove-player="removePlayer"
       @start-rotation="startRotation"
       @stop-rotation="startRotationScoring"
       @next-rotation="planNextRotation"
+      @score-game="updateGameScore"
+      @score-editing-change="handleScoreEditingChange"
+      @designate-winner="designateGameWinner"
     />
   </div>
 </template>
 
 <script>
 import { mapActions, mapState } from 'pinia'
-import { SessionStatus } from '@/models'
+import { RotationStatus, SessionStatus } from '@/models'
 import RotationCard from '@/components/RotationCard.vue'
 import SessionForm from '@/components/SessionForm.vue'
 import { useSessionStore } from '@/stores/session'
@@ -54,6 +67,11 @@ import { useSessionStore } from '@/stores/session'
 export default {
   name: 'ManageSession',
   components: { RotationCard, SessionForm },
+  data() {
+    return {
+      editingGameIds: new Set()
+    }
+  },
   computed: {
     ...mapState(useSessionStore, {
       courts: 'getCourts',
@@ -67,6 +85,9 @@ export default {
     isPreparingSession() {
       return this.session?.status === SessionStatus.CREATED
     },
+    isSessionStarted() {
+      return this.session?.status === SessionStatus.STARTED
+    },
     selectedAttendingPlayerIds() {
       return this.session?.attendingPlayers.map(player => player.id) ?? []
     },
@@ -78,20 +99,55 @@ export default {
         this.rotation?.games.length &&
         this.rotation.games.every(game => game.isResolved)
       )
+    },
+    canEndSession() {
+      if (
+        this.session?.status !== SessionStatus.STARTED ||
+        !this.rotation
+      ) return false
+
+      if (this.rotation.status === RotationStatus.CREATED) return true
+
+      return this.rotation.status === RotationStatus.SCORING &&
+        this.canPlanNextRotation &&
+        this.editingGameIds.size === 0
+    }
+  },
+  watch: {
+    rotation(nextRotation, previousRotation) {
+      if (nextRotation?.id !== previousRotation?.id) {
+        this.editingGameIds = new Set()
+      }
     }
   },
   methods: {
     ...mapActions(useSessionStore, [
       'removePlayer',
       'movePlayer',
+      'swapPlayers',
       'updateAttendingPlayers',
       'startSession',
       'startRotation',
       'startRotationScoring',
-      'planNextRotation'
+      'planNextRotation',
+      'endSession',
+      'updateGameScore',
+      'designateGameWinner'
     ]),
     handleStartSession() {
       this.startSession()
+    },
+    handleScoreEditingChange(command) {
+      const editingGameIds = new Set(this.editingGameIds)
+      if (command.isEditing) editingGameIds.add(command.gameId)
+      else editingGameIds.delete(command.gameId)
+      this.editingGameIds = editingGameIds
+    },
+    async handleEndSession() {
+      if (!this.canEndSession) return
+
+      this.endSession()
+      await this.$router.push({ name: 'home' })
     }
   }
 }
@@ -147,6 +203,26 @@ export default {
   color: #fff;
   cursor: pointer;
   font-weight: 700;
+}
+
+.manage-session__end {
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 4px;
+  background: #d64545;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.manage-session__end:disabled {
+  background: #b8c0c7;
+  cursor: not-allowed;
+}
+
+.manage-session__end:focus-visible {
+  outline: 3px solid rgb(214 69 69 / 30%);
+  outline-offset: 2px;
 }
 
 .manage-session__start:disabled {

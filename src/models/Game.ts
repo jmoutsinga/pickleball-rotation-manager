@@ -55,6 +55,10 @@ export class Game {
     return this._loserTeam
   }
 
+  get hasRecordedScore(): boolean {
+    return this._scoreTeamA !== null && this._scoreTeamB !== null
+  }
+
   get isResolved(): boolean {
     return this._scoreTeamA !== null &&
       this._scoreTeamB !== null &&
@@ -67,12 +71,6 @@ export class Game {
     Game.validateScore(scoreTeamA)
     Game.validateScore(scoreTeamB)
 
-    const keepsManualWinner =
-      scoreTeamA === scoreTeamB &&
-      scoreTeamA === this._scoreTeamA &&
-      scoreTeamB === this._scoreTeamB &&
-      this.isGameTeam(this._winnerTeam)
-
     this._scoreTeamA = scoreTeamA
     this._scoreTeamB = scoreTeamB
 
@@ -80,7 +78,7 @@ export class Game {
       this.setResult(this.teamAId)
     } else if (scoreTeamB > scoreTeamA) {
       this.setResult(this.teamBId)
-    } else if (!keepsManualWinner) {
+    } else {
       this.clearResult()
     }
   }

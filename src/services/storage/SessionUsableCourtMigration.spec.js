@@ -180,7 +180,7 @@ describe('SessionUsableCourtMigration', () => {
     expect(result.teams).toHaveLength(4)
   })
 
-  it('preserves an empty next Rotation placeholder', () => {
+  it('fills an empty next Rotation placeholder with empty Court Games', () => {
     const { location, session } = createLegacyGraph()
     const firstRotation = rotationRepository.getAll()[0]
     const nextRotation = new Rotation(
@@ -198,7 +198,22 @@ describe('SessionUsableCourtMigration', () => {
       rotation => rotation.id === nextRotation.id
     )
 
-    expect(migratedNextRotation.games).toEqual([])
+    expect(result.migrated).toBe(true)
+    expect(migratedNextRotation.games).toHaveLength(1)
+    expect(migratedNextRotation.games[0]).toMatchObject({
+      number: 2,
+      courtId: 'court-1',
+      scoreTeamA: null,
+      scoreTeamB: null
+    })
+    const migratedTeams = result.teams.filter(team =>
+      [
+        migratedNextRotation.games[0].teamAId,
+        migratedNextRotation.games[0].teamBId
+      ].includes(team.id)
+    )
+    expect(migratedTeams).toHaveLength(2)
+    expect(migratedTeams.every(team => team.players.length === 0)).toBe(true)
     expect(migratedNextRotation.waitingPlayers.map(player => player.id))
       .toEqual(session.attendingPlayers.map(player => player.id))
   })

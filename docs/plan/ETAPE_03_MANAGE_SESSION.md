@@ -1,9 +1,9 @@
 # Étape 3 — Modèle, participants et structure de Manage Session
 
-- État : **En cours — tranche 3.21 à démarrer**.
+- État : **En cours — ajustement prioritaire 3.21.13 terminé ; tranche 3.22 à reprendre**.
 - Attendu fonctionnel : [`ATTENDU_FONCTIONNEL.md`](../ATTENDU_FONCTIONNEL.md).
 - Tableau de bord : [`PLAN.md`](../../PLAN.md).
-- Dernière validation significative : **2026-08-20 22:54:20** — type-check, lint incluant Cypress, 302 tests Vitest, 19 scénarios Cypress, `git diff --check` et build Vite réussis après protection du démarrage par la composition complète de chaque Game.
+- Dernière validation significative : **2026-08-21 02:16:26** — type-check, lint incluant Cypress, 326 tests Vitest, 19 scénarios Cypress et build Vite réussis après validation du fieldset de score compact sur viewport portrait.
 
 ## Plan canonique
 
@@ -30,7 +30,7 @@
 18. [x] Traiter une Session inexistante, incohérente ou terminée.
 19. [x] Afficher le titre de page « Training Session Manager » et l’identité `Location.name # Session order` pendant la préparation et la phase démarrée.
 20. [x] Extraire `RotationCard`, `CourtCard`, `GameCard`, `TeamCard` et `OffCourtPlayers`.
-21. [ ] Construire un Game par Court.
+21. [x] Construire un Game par Court.
 22. [ ] Garantir la persistance et la restauration du graphe complet.
 23. [ ] Valider l'ensemble de l'étape par TDD, Cypress et la chaîne de build ; les miroirs Playwright restent planifiés en 6.12.
 
@@ -107,10 +107,10 @@
 ### Ajustement 3.20.6 — validation et placeholder de Rotation suivante
 
 - [x] Afficher `Next Rotation` uniquement lorsque la Rotation est en `SCORING` et déléguer l’intention à `ManageSession`.
-- [x] Introduire `RotationService.planNextRotation(currentGames)`; son premier incrément accepte toutes les Games courantes et retourne une nouvelle liste vide.
+- [x] Introduire `RotationService.planNextRotation(currentGames)`; son premier incrément a d’abord retourné une liste vide, contrat remplacé par la structure complète de 3.21.8.
 - [x] Faire appeler `Rotation.finish()` par l’action Pinia afin de refuser toute Game non résolue et de dater la fin avant le calcul.
 - [x] Persister la Rotation terminée, puis créer la suivante en `CREATED`, avec l’ordre séquentiel, les Games retournées par le service et tous les participants dans `waitingPlayers`.
-- [x] Autoriser uniquement le placeholder structurel « ordre supérieur à 1, `CREATED`, zéro Game, tous les participants en attente » dans `validateSessionGraph()` et empêcher la migration de le remplir automatiquement.
+- [x] Autoriser initialement le placeholder structurel « ordre supérieur à 1, `CREATED`, zéro Game, tous les participants en attente » dans `validateSessionGraph()` et empêcher la migration de le remplir automatiquement ; cette exception est supprimée par 3.21.8.
 - [x] Couvrir le service, le store, l’invariant, la migration, les composants et le parcours navigateur, puis reprendre 3.21.
 
 ### Ajustement 3.20.7 — composition complète avant démarrage d’une Rotation
@@ -120,6 +120,132 @@
 - [x] Ajouter à `RotationCard` une prop d’éligibilité et désactiver `Start Rotation` tant que la composition n’est pas complète.
 - [x] Conserver `RotationCard` indépendant de Pinia : le composant affiche la décision et émet toujours l’intention, tandis que le store porte l’invariant.
 - [x] Couvrir composition partielle, composition complète, retrait d’un Player et transition refusée/acceptée par Vitest et Cypress, puis reprendre 3.21.
+
+### Tranche 3.21 — construire un Game par Court utilisable
+
+- [x] Confirmer que la première Rotation et toute reconfiguration construisent exactement une Game pour chacun des premiers Courts utilisables, dans l’ordre croissant de leur numéro.
+- [x] Numéroter les Games sans trou à l’échelle de la Session, dans l’ordre Rotation puis Court, en conservant l’historique des Rotations précédentes.
+- [x] Conserver les Courts physiques excédentaires pour l’affichage, sans leur associer de Game ni de Team.
+- [x] Restaurer et migrer les graphes historiques en créant les Games manquantes, supprimant les Games excédentaires et renumérotant le résultat de manière idempotente avant validation.
+- [x] Consolider les comportements anticipés par 3.20.2 et 3.20.3 avec 82 tests ciblés, puis valider la chaîne applicative complète avant de passer à 3.22.
+
+### Ajustement prioritaire 3.21.1 — saisie et validation des scores dans GameCard
+
+- [x] Afficher `Game N°{{ game.number }}` en `<h4>` en haut à gauche et reprendre en haut à droite la coche SVG verte de `SessionPlayerCard` lorsque la Game est résolue.
+- [x] Afficher sous les titres Team A et Team B deux inputs numériques uniquement pendant `SCORING`, après l’action `Stop Rotation`.
+- [x] Afficher `WINNER ?` entre les titres lorsque les scores sont à égalité et permettre la désignation du gagnant par clic sur une TeamCard.
+- [x] Placer sous `VS` un bouton icône central `OK`, puis `KO` après validation ; l’ancien comportement destructif de KO est remplacé par 3.21.2.
+- [x] Livrer les premiers états visuels de validation, ensuite remplacés par les couleurs définitives de 3.21.2.
+- [x] Garder `Next Rotation` désactivé tant que toutes les Games ne sont pas résolues et validées, y compris après réouverture d’un score.
+- [x] Couvrir composants, événements, domaine, store, persistance et parcours navigateur avant de reprendre 3.22.
+
+### Ajustement prioritaire 3.21.2 — édition non destructive et couleurs de résultat
+
+- [x] Faire de KO une ouverture d’édition locale qui conserve les deux scores persistés et préremplit les inputs devenus saisissables.
+- [x] Garder `Next Rotation` désactivé tant qu’au moins une Game résolue est rouverte en édition, sans effacer son dernier résultat persistant avant un nouvel OK.
+- [x] Afficher une Game résolue sur fond vert clair et revenir au fond orange uniquement pendant son édition ouverte.
+- [x] Afficher initialement la Team gagnante avec une bordure bleue de `6px` et la Team perdante avec une bordure grise de `2px` ; retirer ces variantes pendant l’édition. Le contrat gagnant est remplacé par 3.21.3.
+- [x] Adapter les contrats composants, supprimer la commande métier destructive devenue inutile et couvrir le cycle par Vitest ainsi que Cypress avant de reprendre 3.22.
+
+### Ajustement prioritaire 3.21.3 — dimensions des scores et marqueurs W/L
+
+- [x] Centrer la valeur des inputs numériques et limiter leur largeur visuelle à celle de trois chiffres.
+- [x] Remplacer la bordure de la Team gagnante par une bordure `4px solid #ff4600`, sans modifier la bordure perdante grise de `2px`.
+- [x] Afficher dans chaque TeamCard résolue un marqueur rond W ou L de la couleur de sa bordure, toujours en haut à droite pour Team A et en haut à gauche pour Team B.
+- [x] Masquer les marqueurs pendant la réouverture KO en cohérence avec les bordures de résultat, puis couvrir les contrats composants et le parcours navigateur avant de reprendre 3.22.
+
+### Ajustement prioritaire 3.21.4 — recentrage des titres Team A et Team B
+
+- [x] Retirer les paddings directionnels qui décalent les titres depuis l’ajout des marqueurs W/L.
+- [x] Centrer les deux titres sur toute la largeur de leur TeamCard, les marqueurs restant superposés dans leur angle fixe.
+- [x] Couvrir le centrage calculé dans le navigateur et valider la chaîne applicative avant de reprendre 3.22.
+
+### Ajustement prioritaire 3.21.5 — commandes −/+ des scores
+
+- [x] Entourer chaque input de score visible par deux boutons accessibles − et +, tout en conservant la saisie numérique directe.
+- [x] Faire émettre à TeamCard la nouvelle valeur sans muter sa prop, initialiser une valeur absente à 0 lors du premier incrément et borner les commandes entre 0 et 100.
+- [x] Désactiver simultanément l’input et ses commandes après OK, puis les réactiver avec leur valeur lors de KO.
+- [x] Couvrir les interactions, les bornes et le parcours navigateur avant de reprendre 3.22.
+
+### Ajustement prioritaire 3.21.6 — redemander le gagnant après KO sur égalité
+
+- [x] Conserver sans écriture destructive le dernier score égal et son résultat pendant l’édition ouverte par KO.
+- [x] Faire de toute nouvelle soumission OK de scores égaux une invalidation du choix manuel précédent, y compris lorsque les valeurs sont inchangées.
+- [x] Réafficher `WINNER ?`, maintenir la Game et Next Rotation non résolus jusqu’à la nouvelle désignation, puis persister ce nouveau choix.
+- [x] Couvrir le cycle complet par les tests du domaine, des composants, du store et du navigateur avant de reprendre 3.22.
+
+### Ajustement prioritaire 3.21.7 — surbrillance du choix du gagnant
+
+- [x] Mettre en surbrillance grise la TeamCard survolée uniquement lorsqu’elle est sélectionnable pendant `WINNER ?`.
+- [x] Retirer l’état visuel à la sortie du pointeur et automatiquement lorsque le choix du gagnant rend la carte non sélectionnable.
+- [x] Préserver le rendu des TeamCards ordinaires, en édition et résolues, puis couvrir les transitions de survol par Vitest et Cypress avant de reprendre 3.22.
+
+### Ajustement prioritaire 3.21.8 — structure vide de la Rotation suivante
+
+- [x] Remplacer le placeholder `CREATED` sans Game décidé en 3.20.6 par une Game vide et deux Teams vides pour chacun des Courts utilisables de la Session.
+- [x] Continuer la numérotation des Games à l’échelle de la Session, ne préplacer aucun Player dans les Teams et placer tous les participants dans `waitingPlayers`.
+- [x] Faire retourner cette structure par `RotationService`, l’installer dans le store et la persister atomiquement avec la Rotation suivante.
+- [x] Supprimer l’exception de validation autorisant zéro Game et faire normaliser par la migration les anciens placeholders persistés.
+- [x] Couvrir service, invariant, migration, store, rechargement et navigateur ; conserver Start Rotation désactivé jusqu’à la composition complète avant de reprendre 3.22.
+
+### Ajustement prioritaire 3.21.9 — drag & drop tactile
+
+Objectif : rendre l’affectation manuelle des Players utilisable sur smartphone sans remplacer le chemin HTML5 déjà employé à la souris.
+
+- [x] Ajouter aux PlayerCards et aux zones de dépôt des attributs DOM stables consommés uniquement par l’adaptateur tactile de RotationCard.
+- [x] Écouter les Pointer Events touch/stylet à la racine de RotationCard, capturer le pointeur lorsque le navigateur le permet et déterminer la cible au relâchement avec `elementFromPoint()`.
+- [x] Réutiliser `handlePlayerDrop()` et l’événement `move-player` afin de conserver l’unique règle d’affectation portée par le store.
+- [x] Ignorer les départs depuis les contrôles interactifs, gérer `pointercancel` et empêcher le navigateur d’interpréter le geste comme un scroll sur la PlayerCard déplacée.
+- [x] Vérifier par Vitest les dépôts Team/waiting list et l’annulation, puis exécuter un déplacement tactile dans Cypress sur un viewport smartphone.
+
+La tranche 3.22 redevient la tranche active après validation de cet ajustement.
+
+### Ajustement prioritaire 3.21.10 — réinitialisation de la saisie des nouvelles Games
+
+Objectif : empêcher qu’une `GameCard` réutilisée par Vue sur le même Court conserve l’état d’édition fermé de la Game résolue de la Rotation précédente.
+
+- [x] Reproduire dans le test composant le remplacement d’une Game résolue par une nouvelle Game sans score avec conservation de l’instance Vue.
+- [x] Lors du changement de `game.id`, resynchroniser les deux scores locaux et initialiser `isEditing` depuis `game.hasRecordedScore`.
+- [x] Conserver l’édition locale lors des mises à jour de score de la même Game et le comportement KO non destructif.
+- [x] Vérifier dans Cypress le cycle Rotation suivante, composition, Start Rotation, Stop Rotation et saisie immédiate de tous les scores.
+
+La tranche 3.22 redevient la tranche active après validation de ce correctif.
+
+### Ajustement prioritaire 3.21.11 — terminer la Session depuis son en-tête
+
+Objectif : anticiper la commande End Session prévue à l’étape 5 et rendre ses deux issues persistantes explicites.
+
+- [x] Afficher End Session à droite de `Location # Session X` uniquement pour une Session `STARTED`.
+- [x] Activer la commande si la Rotation courante est `CREATED`, ou si elle est `SCORING`, entièrement résolue et sans Game rouverte en édition locale.
+- [x] Faire remonter l’état `score-editing-change` de RotationCard afin qu’End Session partage exactement l’éligibilité effective de Next Rotation.
+- [x] Pour une Rotation `SCORING`, appeler `Rotation.finish()`, conserver ses scores et son historique, puis appeler `Session.finish()` avec le même instant.
+- [x] Pour une Rotation `CREATED`, la supprimer de la collection persistée ainsi que ses Teams devenues orphelines avant de terminer la Session.
+- [x] Remettre les Players à `AVAILABLE`, persister le graphe avant toute redirection puis naviguer vers Home.
+- [x] Protéger l’action Pinia contre `IN_PROGRESS`, un scoring incomplet et toute Session non démarrée ; couvrir service de graphe, store, composants et navigateur.
+
+Cette tranche anticipe les points 8 et 9 de l’étape 5. La tranche 3.22 redevient la tranche active après validation.
+
+### Ajustement prioritaire 3.21.12 — échange de Players par drag & drop
+
+Objectif : pendant une Rotation `CREATED`, permettre à un dépôt effectué directement sur une autre PlayerCard d’intervertir les deux positions sans modifier les autres affectations.
+
+- [x] Distinguer l’intention `swap-player` du déplacement existant vers une Team ou la waiting list et empêcher la propagation du drop vers la zone parente.
+- [x] Conserver les slots exacts `player1`/`player2` lors d’un échange Team↔Team, ainsi que l’indice exact dans `waitingPlayers` lors d’un échange impliquant la waiting list.
+- [x] Refuser toute mutation hors du statut `CREATED`, valider les deux Players avant mutation et persister le graphe atomiquement après l’échange.
+- [x] Résoudre en priorité la PlayerCard survolée dans le chemin Pointer Events afin que le même contrat fonctionne à la souris, au doigt et au stylet.
+- [x] Couvrir le domaine, le store, la remontée des événements Vue et les parcours navigateur souris/tactile avant de reprendre 3.22.
+
+La tranche 3.22 redevient la tranche active après validation de cet ajustement.
+
+### Ajustement prioritaire 3.21.13 — rendu compact du fieldset de score
+
+Objectif : conserver le regroupement sémantique des commandes de score avec un `fieldset` sans subir sa bordure, son padding ni sa largeur minimale natifs sur smartphone.
+
+- [x] Réinitialiser uniquement les styles structurels propres au `fieldset.team__score-control` afin de retrouver le rendu flex de l’ancien `div`.
+- [x] Conserver le centrage, les espacements et les dimensions existantes des boutons −/+, ainsi que la largeur de trois chiffres de l’input.
+- [x] Vérifier le composant et le rendu calculé sur viewport portrait, puis reprendre 3.22.
+
+La tranche 3.22 redevient la tranche active après validation de cet ajustement.
 
 
 ## Découpage détaillé historique

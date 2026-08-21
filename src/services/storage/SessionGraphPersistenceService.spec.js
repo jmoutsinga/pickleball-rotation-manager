@@ -136,4 +136,54 @@ describe('SessionGraphPersistenceService', () => {
       teams: localStorage.getItem('pickleball_teams')
     }).toEqual(before)
   })
+
+  it('discards a never-started Rotation and its orphan Teams', () => {
+    const graph = createGraph()
+    const firstRotation = graph.rotation
+    firstRotation.start(new Date('2026-08-20T08:05:00.000Z'))
+    firstRotation.startScoring()
+    firstRotation.games[0].recordScore(11, 7)
+    firstRotation.finish(new Date('2026-08-20T08:20:00.000Z'))
+    service.save(graph)
+
+    const nextTeams = [
+      new Team(null, null, 'next-team-a'),
+      new Team(null, null, 'next-team-b')
+    ]
+    const nextGame = new Game({
+      number: 2,
+      courtId: graph.courts[0].id,
+      teamAId: nextTeams[0].id,
+      teamBId: nextTeams[1].id,
+      scoreTeamA: null,
+      scoreTeamB: null,
+      winnerTeam: null,
+      loserTeam: null
+    }, 'game-2')
+    const nextRotation = new Rotation(
+      graph.session.id,
+      2,
+      [nextGame],
+      [...graph.session.attendingPlayers],
+      'rotation-2'
+    )
+    service.save({
+      ...graph,
+      rotation: nextRotation,
+      teams: nextTeams
+    })
+
+    graph.session.finish(new Date('2026-08-20T08:25:00.000Z'))
+    service.save({
+      ...graph,
+      rotation: nextRotation,
+      teams: nextTeams,
+      discardRotation: true
+    })
+
+    expect(JSON.parse(localStorage.getItem('pickleball_rotations'))
+      .map(rotation => rotation.id)).toEqual([firstRotation.id])
+    expect(JSON.parse(localStorage.getItem('pickleball_teams'))
+      .map(team => team.id).sort()).toEqual(['team-a', 'team-b'])
+  })
 })

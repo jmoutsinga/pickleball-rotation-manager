@@ -41,4 +41,19 @@ describe('Team', () => {
     expect(restoredTeam.id).toBe('team-1')
     expect(restoredTeam.players.map(player => player.id)).toEqual(['player-2'])
   })
+
+  it('replaces its lineup while preserving explicit player slots', () => {
+    const alice = createPlayer('player-1', 'alice')
+    const bob = createPlayer('player-2', 'bob')
+    const team = new Team()
+
+    team.replaceLineup(bob, alice)
+
+    expect(team.player1).toBe(bob)
+    expect(team.player2).toBe(alice)
+    expect(() => team.replaceLineup(alice, alice))
+      .toThrow('A team requires two different players')
+    expect(team.player1).toBe(bob)
+    expect(team.player2).toBe(alice)
+  })
 })

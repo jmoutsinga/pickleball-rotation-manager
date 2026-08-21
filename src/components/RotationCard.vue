@@ -1,5 +1,11 @@
 <template>
-  <section class="rotation-card">
+  <section
+    class="rotation-card"
+    @pointerdown="handlePointerDown"
+    @pointermove="handlePointerMove"
+    @pointerup="handlePointerUp"
+    @pointercancel="handlePointerCancel"
+  >
     <header class="rotation-card__header rotation-card__header--sticky">
       <h3>Rotation N° {{ rotationOrder }}</h3>
       <button
@@ -23,7 +29,7 @@
         v-else-if="rotationStatus === RotationStatus.SCORING"
         type="button"
         class="rotation-card__action rotation-card__next"
-        :disabled="!canPlanNextRotation"
+        :disabled="!canPlanNextRotation || editingGameIds.size > 0"
         @click="emit('next-rotation')"
       >
         Next Rotation
@@ -36,9 +42,14 @@
           v-for="court in courts"
           :key="court.id"
           :court="court"
+          :rotation-status="rotationStatus"
           @player-drag-start="draggedPlayerId = $event"
           @player-drop="handlePlayerDrop"
+          @player-swap="handlePlayerSwap"
           @remove-player="emit('remove-player', $event)"
+          @score-game="emit('score-game', $event)"
+          @score-editing-change="handleScoreEditingChange"
+          @designate-winner="emit('designate-winner', $event)"
         />
       </div>
 
@@ -46,6 +57,7 @@
         :players="waitingPlayers"
         @player-drag-start="draggedPlayerId = $event"
         @player-drop="handlePlayerDrop"
+        @player-swap="handlePlayerSwap"
         @remove-player="emit('remove-player', $event)"
       />
     </div>
@@ -53,15 +65,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { RotationStatus, type Player } from '@/models'
 import CourtCard from './CourtCard.vue'
 import OffCourtPlayers from './OffCourtPlayers.vue'
-import type { RotationCourtPresentation } from './rotationPresentation'
+import type {
+  DesignateWinnerCommand,
+  RotationCourtPresentation,
+  ScoreEditingCommand,
+  ScoreGameCommand,
+  SwapPlayerCommand
+} from './rotationPresentation'
 
 defineOptions({ name: 'RotationCard' })
 
-defineProps<{
+const props = defineProps<{
   rotationOrder: number
   rotationStatus: RotationStatus
   canStartRotation: boolean
@@ -75,13 +93,23 @@ const emit = defineEmits<{
     playerId: string
     targetTeamId: string | null
   }]
+  'swap-player': [command: SwapPlayerCommand]
   'remove-player': [playerId: string]
   'start-rotation': []
   'stop-rotation': []
   'next-rotation': []
+  'score-game': [command: ScoreGameCommand]
+  'score-editing-change': [command: ScoreEditingCommand]
+  'designate-winner': [command: DesignateWinnerCommand]
 }>()
 
 const draggedPlayerId = ref<string | null>(null)
+const activeTouchPointerId = ref<number | null>(null)
+const editingGameIds = ref(new Set<string>())
+
+watch(() => props.rotationOrder, () => {
+  editingGameIds.value = new Set()
+})
 
 function handlePlayerDrop(targetTeamId: string | null): void {
   if (!draggedPlayerId.value) return
@@ -91,6 +119,94 @@ function handlePlayerDrop(targetTeamId: string | null): void {
     targetTeamId
   })
   draggedPlayerId.value = null
+}
+
+function handlePlayerSwap(targetPlayerId: string): void {
+  if (!draggedPlayerId.value) return
+
+  if (draggedPlayerId.value !== targetPlayerId) {
+    emit('swap-player', {
+      playerId: draggedPlayerId.value,
+      targetPlayerId
+    })
+  }
+  draggedPlayerId.value = null
+}
+
+function handlePointerDown(event: PointerEvent): void {
+  if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return
+
+  const eventTarget = event.target
+  if (!(eventTarget instanceof Element)) return
+  if (eventTarget.closest('button, input, select, textarea, a')) return
+
+  const playerCard = eventTarget.closest<HTMLElement>('[data-touch-player-id]')
+  const playerId = playerCard?.dataset.touchPlayerId
+  if (!playerId) return
+
+  draggedPlayerId.value = playerId
+  activeTouchPointerId.value = event.pointerId
+  event.preventDefault()
+  tryCapturePointer(event.currentTarget as HTMLElement, event.pointerId)
+}
+
+function handlePointerMove(event: PointerEvent): void {
+  if (event.pointerId !== activeTouchPointerId.value) return
+
+  event.preventDefault()
+}
+
+function handlePointerUp(event: PointerEvent): void {
+  if (event.pointerId !== activeTouchPointerId.value) return
+
+  event.preventDefault()
+  const dropElement = document.elementFromPoint(event.clientX, event.clientY)
+  const playerTarget = dropElement
+    ?.closest<HTMLElement>('[data-touch-player-id]')
+  const teamTarget = dropElement?.closest<HTMLElement>('[data-touch-team-id]')
+  const waitingTarget = dropElement?.closest<HTMLElement>('[data-touch-waiting-target]')
+
+  if (playerTarget?.dataset.touchPlayerId) {
+    handlePlayerSwap(playerTarget.dataset.touchPlayerId)
+  } else if (teamTarget?.dataset.touchTeamId) {
+    handlePlayerDrop(teamTarget.dataset.touchTeamId)
+  } else if (waitingTarget) {
+    handlePlayerDrop(null)
+  }
+
+  resetTouchDrag(event)
+}
+
+function handlePointerCancel(event: PointerEvent): void {
+  if (event.pointerId !== activeTouchPointerId.value) return
+
+  resetTouchDrag(event)
+}
+
+function resetTouchDrag(event: PointerEvent): void {
+  const rotationCard = event.currentTarget as HTMLElement
+  if (rotationCard.hasPointerCapture?.(event.pointerId)) {
+    rotationCard.releasePointerCapture(event.pointerId)
+  }
+
+  activeTouchPointerId.value = null
+  draggedPlayerId.value = null
+}
+
+function tryCapturePointer(element: HTMLElement, pointerId: number): void {
+  try {
+    element.setPointerCapture?.(pointerId)
+  } catch {
+    // Some embedded browsers expose Pointer Events without pointer capture.
+  }
+}
+
+function handleScoreEditingChange(command: ScoreEditingCommand): void {
+  const nextEditingGameIds = new Set(editingGameIds.value)
+  if (command.isEditing) nextEditingGameIds.add(command.gameId)
+  else nextEditingGameIds.delete(command.gameId)
+  editingGameIds.value = nextEditingGameIds
+  emit('score-editing-change', command)
 }
 </script>
 
